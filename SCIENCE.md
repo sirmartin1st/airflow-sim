@@ -121,7 +121,7 @@ with H_met = 10 m, a_met = 0.14, δ_met = 270 m, and site terrain from a UI drop
 | Suburban (default) | 0.22 | 370 |
 | Urban / dense | 0.33 | 460 |
 
-Source: ASHRAE Handbook—Fundamentals, "Airflow Around Buildings" chapter. Verify these table values against the current edition when implementing.
+Source: ASHRAE Handbook—Fundamentals, "Airflow Around Buildings" chapter. Cross-checked 2026-09-24 against EnergyPlus (`HeatBalanceManager.cc`, terrain defaults Country/Suburbs/City), which implements the same ASHRAE table with identical values. The current ASHRAE edition itself was not consulted.
 
 ### 5.3 Wind pressure coefficient Cp(β)
 
@@ -136,7 +136,7 @@ Cp = Cp(0°) · NCp = 0.6 · NCp
 
 - G = ln(S), where S = (length of this wall) / (length of the adjacent wall), taken from the building's footprint bounding box.
 - β is in radians inside the trig functions.
-- Note: the AIVC source text is ambiguous on whether the 0.131 term is cubed. It only matters when S ≠ 1. Confirm against the original paper and record the decision in a comment.
+- Note: the AIVC source text is ambiguous on whether the 0.131 term is cubed. It only matters when S ≠ 1. **Resolved 2026-09-24: the sine is cubed, 0.131·[sin(2βG)]³**, matching the low-rise Swami & Chandra implementation in EnergyPlus (`AirflowNetwork/src/Solver.cpp`, `pow_3(std::sin(2.0 * IncRad * SideRatioFac))` with `SideRatioFac = ln(SideRatio)`). The original 1988 paper was not consulted; EnergyPlus is a widely used, validated secondary source.
 
 Reference values (square footprint, S = 1). Use these as unit-test targets:
 
@@ -179,13 +179,20 @@ Q_j  = C_d · A_j · sign(ΔP_j) · sqrt( 2·|ΔP_j| / ρ_j )   (m³/s, + = infl
 Σ_j ρ_j · Q_j  +  Σ_fans ρ · Q_fan,window  =  0
 ```
 
-The left side is monotonic in P_in, so solve with **bisection** (bracket ±2000 Pa, tolerance 1e-6 Pa). Newton's method is fine too but bisection can't fail.
+The left side is monotonic in P_in, so solve with **bisection** (bracket ±2000 Pa). Newton's method is fine too but bisection can't fail.
+
+Implementation details (added 2026-09-24):
+- **Tolerance: bisect to floating-point precision** (stop when the midpoint equals an endpoint; safety cap 200 iterations, ~60 needed in practice). This replaces the original 1e-6 Pa tolerance. Reason: Q ∝ sqrt(|ΔP|), so near ΔP = 0 a pressure error δ gives a flow error ≈ C_d·A·sqrt(2δ/ρ). For δ = 1e-6 Pa and a 0.54 m² window that is ~4e-4 m³/s (~1 CFM) of spurious flow in a single-opening room, where the true net flow is exactly zero. Found by the single-opening unit test in `tests/envelope_test.js`. Cost is negligible (Layer A runs every 0.5 s).
+- P_in is the indoor pressure at floor level (z = 0), which is the reference height for the stack term in §5.4.
+- If the residual has the same sign at both ends of the bracket, no physical balance exists (e.g. a window fan in a room with no other open opening). Report the zone as **unbalanced** and show a UI warning rather than a flow number.
 
 This is the standard orifice/airflow-network method (ASHRAE Fundamentals, "Ventilation and Infiltration" chapter; NIST CONTAM).
 
 ### 5.6 Window fans
 
 A fan placed **inside** a window opening is a fixed-flow element: Q_fan = rated flow × speed setting, inflow or outflow per its direction. It adds to the mass balance in §5.5 and the remaining window area (if any) acts as a normal orifice.
+
+The remaining orifice area is `max(0, A − A_fan_face)`. In the mass balance the fan's density is that of the air it moves: ρ_out for an intake fan and ρ_in for an exhaust fan, the same upstream rule as the orifice equation.
 
 ### 5.7 Two-way exchange at a single opening (single-sided ventilation)
 
@@ -196,7 +203,7 @@ U_eff = sqrt( C1·U_met² + C2·g·h·|ΔT| + C3 )     C1 = 0.001, C2 = 0.0035, 
 Q_dgp = (A / 2) · U_eff
 ```
 
-h = opening height (m), ΔT = |T_out − T_in| (K), U_met = met-station wind speed (m/s).
+h = opening height (m), ΔT = |T_out − T_in| (K), U_met = met-station wind speed (m/s). A is the opening's remaining orifice area (after subtracting any window fan, §5.6).
 
 Apply as: `Q_exchange,j = max(0, Q_dgp,j − |Q_j|)`. This is a **zero-net-mass** exchange: in Layer B it swaps indoor air for outdoor-temperature air in the cells just inside the opening, with no net velocity imposed. This is a documented heuristic for combining the two models. Flag it as such in the code.
 

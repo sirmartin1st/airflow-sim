@@ -27,3 +27,7 @@ node tests/run.js
 ```
 
 There's no build step and there are no dependencies. The browser loads the files as they are.
+
+## Debug pages
+
+- `debug/envelope.html`: per-window flows for a hard-coded two-window room (Layer A only).

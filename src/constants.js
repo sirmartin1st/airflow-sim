@@ -66,7 +66,7 @@ export const DELTA_MET = 270;
 /**
  * Site terrain options: power-law exponent `a` and boundary-layer thickness `delta` (m).
  * ASHRAE Handbook—Fundamentals, "Airflow Around Buildings"; SCIENCE.md §5.2.
- * TODO (Phase 2): verify these table values against the current ASHRAE edition.
+ * Cross-checked 2026-09-24 against EnergyPlus terrain defaults (Country/Suburbs/City): identical.
  */
 export const TERRAIN = Object.freeze({
   open:     Object.freeze({ a: 0.14, delta: 270 }),
@@ -88,8 +88,11 @@ export const DGP_C3 = 0.01;   // turbulence term, m²/s²
 /** Bisection bracket for zone pressure, Pa. SCIENCE.md §5.5. */
 export const ZONE_P_BRACKET = 2000;
 
-/** Bisection tolerance for zone pressure, Pa. SCIENCE.md §5.5. */
-export const ZONE_P_TOL = 1e-6;
+/**
+ * Safety cap on zone-pressure bisection iterations. SCIENCE.md §5.5.
+ * Bisection runs to floating-point precision (~60 iterations); this only guards against an endless loop.
+ */
+export const ZONE_P_MAX_ITER = 200;
 
 /** How often Layer A is re-solved, s of sim time. SCIENCE.md §5.8. */
 export const ENVELOPE_UPDATE_INTERVAL = 0.5;

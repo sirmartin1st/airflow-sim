@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Envelope Debug</title>
+  <link rel="stylesheet" href="../style.css">
+</head>
+<body>
+  <header>
+    <h1>Layer A debug: two-window room</h1>
+    <p class="status">Hard-coded 13 × 16 ft room (4 × 5 m), north up. One window on the north wall, one on the south wall, each half open.</p>
+  </header>
+  <main class="debug">
+    <form id="inputs" class="inputs">
+      <label>Wind speed (mph) <input name="windMph" type="number" value="10" min="0" step="1"></label>
+      <label>Wind from
+        <select name="windFrom">
+          <option value="0" selected>N (0°)</option><option value="45">NE (45°)</option>
+          <option value="90">E (90°)</option><option value="135">SE (135°)</option>
+          <option value="180">S (180°)</option><option value="225">SW (225°)</option>
+          <option value="270">W (270°)</option><option value="315">NW (315°)</option>
+        </select>
+      </label>
+      <label>Terrain
+        <select name="terrain">
+          <option value="open">Open</option>
+          <option value="suburban" selected>Suburban</option>
+          <option value="urban">Urban</option>
+        </select>
+      </label>
+      <label>Outside (°F) <input name="outF" type="number" value="65" step="1"></label>
+      <label>Inside (°F) <input name="inF" type="number" value="78" step="1"></label>
+    </form>
+
+    <table>
+      <thead>
+        <tr><th>Opening</th><th>Faces</th><th>Wind angle β</th><th>Cp</th><th>ΔP (Pa)</th><th>Flow (CFM)</th><th>Direction</th><th>Two-way exchange (CFM)</th></tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+
+    <p id="zone"></p>
+    <p class="note">Positive flow = air coming in. ΔP = outside minus inside pressure. Numbers come straight from <code>src/physics/envelope.js</code> (SCIENCE.md §5).</p>
+  </main>
+  <script type="module" src="./envelope.js"></script>
+</body>
+</html>
