@@ -24,6 +24,9 @@ export const ALPHA_AIR = 2.1e-5;
 /** Offset between Celsius and Kelvin. Exact by definition (SI). */
 export const KELVIN_OFFSET = 273.15;
 
+/** Reference temperature at which ν and α above are quoted, K (20 °C). SCIENCE.md §3. */
+export const REFERENCE_TEMPERATURE = 293.15;
+
 // ---------------------------------------------------------------------------
 // Turbulence and drag — SCIENCE.md §6.5
 // ---------------------------------------------------------------------------
@@ -134,6 +137,30 @@ export const CFL = 0.5;
 
 /** Target divergence after projection, 1/s. SCIENCE.md §6.2 and V6. */
 export const DIVERGENCE_TOL = 1e-4;
+
+// Numerical parameters (not physics). They control solver accuracy/robustness only.
+
+/**
+ * Modified incomplete Cholesky MIC(0) preconditioner tuning constant and safety factor.
+ * Bridson (2015), Fluid Simulation for Computer Graphics, 2nd ed., §5.2 (values recommended there).
+ */
+export const MIC_TAU = 0.97;
+export const MIC_SIGMA = 0.25;
+
+/**
+ * PCG stops when max|∇·u| after projection would be below this fraction of DIVERGENCE_TOL,
+ * so the V6 check (max|∇·u| < DIVERGENCE_TOL) has margin for round-off. Numerical choice.
+ */
+export const PCG_TOL_FRACTION = 0.1;
+
+/** Safety cap on PCG iterations per projection. Numerical choice; hitting it is reported in stats. */
+export const PCG_MAX_ITER = 2000;
+
+/** Implicit diffusion (Gauss-Seidel) stops when the largest update is below this × max|field|. Numerical choice. */
+export const DIFFUSION_REL_TOL = 1e-8;
+
+/** Safety cap on Gauss-Seidel sweeps per implicit diffusion solve. Numerical choice. */
+export const DIFFUSION_MAX_ITER = 500;
 
 /** Fan actuator relaxation time constant, s. SCIENCE.md §6.6. */
 export const FAN_TAU = 0.1;

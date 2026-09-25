@@ -1,4 +1,4 @@
-// Runs every test file in tests/ (anything ending in .js except run.js and lib.js)
+// Runs every test file in tests/ (anything ending in .js except run.js, lib.js and _helpers)
 // in its own Node process, then prints a pass/fail table.
 // Exit code is 1 if any test fails, so this can gate commits.
 //
@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const SKIP = new Set(['run.js', 'lib.js']);
 
 const files = readdirSync(here)
-  .filter((f) => f.endsWith('.js') && !SKIP.has(f))
+  .filter((f) => f.endsWith('.js') && !SKIP.has(f) && !f.startsWith('_'))
   .sort();
 
 const rows = [];

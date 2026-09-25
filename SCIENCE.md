@@ -239,6 +239,16 @@ Based on Stam, "Stable Fluids" (SIGGRAPH 1999), with the upgrades noted:
 5. **Project**: solve the pressure Poisson equation `∇²p = (ρ/Δt)∇·u*`, then `u = u* − (Δt/ρ)∇p`. Use **preconditioned conjugate gradient** (incomplete Cholesky or Jacobi preconditioner). Plain Jacobi is too slow to converge on 100+ cell grids. Target residual: max |∇·u| < 1e-4 s⁻¹.
 6. **Advect/diffuse scalars** T and A with the projected velocity, then add the age source (+Δt to A in every fluid cell).
 
+**Heat-conservation correction for T** (added 2026-09-24, approved by Marty). Semi-Lagrangian advection, including BFECC, is not exactly conservative. In V6 it drifted the room-mean temperature by 0.14 K in 60 s (3.5% of a 4 K spread), and the drift shrank ~3.3× when Δ was halved, so it is discretization error, not a bug. After advecting T, each zone's total Σ T_c is reset to what conservation requires:
+
+```
+Σ T_c (after) = Σ T_c (before) + (Δt/Δ) · Σ_boundary faces u_in · T_upwind
+```
+
+The sum runs over faces between the zone and INLET/OUTLET cells. u_in is the face velocity into the zone, and T_upwind is the inlet temperature for inflow or the cell's own temperature for outflow. The difference is added uniformly to every cell in the zone. This is a global, uniform variant of the "mass fixers" used with semi-Lagrangian advection in weather models (e.g. Priestley 1993, *Monthly Weather Review* 121, 621–629). Diffusion (zero-flux walls) and the two-way exchange source are left untouched: the first is already conservative, and the second is a deliberate source. The age tracer A is not corrected; revisit if V8 needs it.
+
+Known side effect: when a sharp temperature front enters through an inlet, BFECC admits slightly less of the incoming air at the boundary than the face flux carries, and the uniform correction spreads that difference across the zone. In the flush test (`tests/fluid_test.js`: 10 K front, 0.5 m/s) cells briefly undershoot the inlet temperature by up to ~0.3 K, then the undershoot washes out entirely.
+
 Time step: `Δt = min(0.5 · Δ / max|u|, 0.05 s)`. Display simulated time on screen with a speed control (1×, 5×, 20× real time).
 
 ### 6.3 Why 2D is allowed here and where it breaks
@@ -330,12 +340,12 @@ Every test lives in `tests/` and runs in Node with no browser. Record results in
 
 | ID | Test | What it proves | Pass criterion |
 |---|---|---|---|
-| V1 | **Lid-driven cavity**, Re = 100 and 400, 64×64 and 128×128 (turbulence model and drag off) | Core Navier-Stokes solver is correct | Centerline u and v profiles within 5% of Ghia, Ghia & Shin (1982) tabulated values (normalized by lid speed) at Re 100 |
+| V1 | **Lid-driven cavity**, Re = 100 and 400, 64×64 and 128×128 (turbulence model and drag off) | Core Navier-Stokes solver is correct | Centerline u and v profiles within 5% of Ghia, Ghia & Shin (1982) tabulated values (normalized by lid speed) at Re 100, i.e. max \|model − Ghia\| ≤ 0.05·U_lid at the tabulated points (interpretation confirmed by Marty 2026-09-24) |
 | V2 | **Plane Poiseuille channel** (ν only, pressure-driven) | Viscous terms and walls correct | Profile within 2% of analytic parabola (note: uses no-slip walls for this test only) |
 | V3 | **Two-opening network**, opposite walls, areas A1, A2, Cp1 = 0.6, Cp2 = −0.36, no ΔT | Layer A equations and solver | Q equals `C_d · U_H · sqrt(ΔCp) / sqrt(1/A1² + 1/A2²)` to 1e-6 relative |
 | V4 | **Cp(β) table** in §5.3 | Correlation typed correctly | Matches table to ±0.002 |
 | V5 | **Fan jet decay**: 20" box fan in a large empty room (10 × 10 m) | Interior jets have realistic reach (calibrates c_f) | Centerline velocity follows `V_x / V_0 = K · sqrt(A_0) / x`, K ≈ 5.7 (compact jet, ASHRAE/AIVC), within ±25% over 1–5 m. Note: this is a calibration, not independent validation. Say so in VALIDATION.md. |
-| V6 | **Closed room conservation**: no openings, fan off after 10 s, initial temperature gradient | Stability and conservation | max |∇·u| < 1e-4 after every projection; kinetic energy decays monotonically; mean T conserved within 0.1% |
+| V6 | **Closed room conservation**: no openings, fan off after 10 s, initial temperature gradient | Stability and conservation | max |∇·u| < 1e-4 after every projection; kinetic energy decays monotonically; mean T drift < 1% of the initial temperature spread (max − min). Tightened 2026-09-24 with Marty's OK: the original "0.1% of mean T" in kelvin allowed ≈ 0.29 K, too loose to catch the advection drift |
 | V7 | **Stack sign**: warm inside, cool outside, one low and one high opening, no wind | Stack sign convention | Inflow at the low opening, outflow at the high one |
 | V8 | **Well-mixed sanity**: one inlet, one outlet, steady | Age tracer and ACH consistent | Room-average age between 0.5·τ_n and 1.5·τ_n |
 | V9 | **Cross-check vs NIST CONTAM** (manual, 2–3 layouts) | Layer A against an established tool | Per-opening flows within 10% |
@@ -359,6 +369,7 @@ Every test lives in `tests/` and runs in Node with no browser. Record results in
 - Ghia, U., Ghia, K. N., Shin, C. T. (1982). "High-Re solutions for incompressible flow using the Navier-Stokes equations and a multigrid method." *J. Computational Physics* 48, 387–411.
 - ASHRAE Handbook—Fundamentals: chapters on Airflow Around Buildings, Ventilation and Infiltration, and Space Air Diffusion.
 - ANSI/ASHRAE Standard 55, Thermal Environmental Conditions for Human Occupancy (elevated air speed).
+- Priestley, A. (1993). "A quasi-conservative version of the semi-Lagrangian advection scheme." *Monthly Weather Review* 121, 621–629.
 - Swami, M. V. & Chandra, S. (1988). "Correlations for pressure distribution on buildings and calculation of natural-ventilation airflow." *ASHRAE Transactions* 94(1). Summary: https://www.aivc.org/sites/default/files/airbase_3283.pdf
 - de Gids, W. & Phaff, H. (1982). "Ventilation rates and energy consumption due to open windows." *Air Infiltration Review* 4(1). Summarized in: https://engineering.purdue.edu/~yanchen/paper/2003-11.pdf
 - Diffuser jet decay constants: https://www.aivc.org/sites/default/files/airbase_6532.pdf
