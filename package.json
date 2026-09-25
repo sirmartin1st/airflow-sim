@@ -1,0 +1,9 @@
+{
+  "name": "airflow-sim",
+  "private": true,
+  "description": "Tells Node that .js files are ES modules. No dependencies.",
+  "type": "module",
+  "scripts": {
+    "test": "node tests/run.js"
+  }
+}
