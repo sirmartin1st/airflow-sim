@@ -8,10 +8,10 @@ Latest results for the validation suite in SCIENCE.md §8. Update this file when
 | V2 | Poiseuille channel | **PASS** | 64 × 32 cells, Re 20: max error 0.72% of u_max (criterion 2%) | 2026-09-24 |
 | V3 | Two-opening network | **PASS** | 4 cases (A1/A2 from 0.2–1.5 m², U_met 0.5–10 m/s); max rel. error 2.1e-16 vs criterion 1e-6 | 2026-09-24 |
 | V4 | Cp(β) table | **PASS** | 9 angles; max abs. error 0.0005 vs criterion 0.002 | 2026-09-24 |
-| V5 | Fan jet decay (calibration) | not yet implemented | — | — |
-| V6 | Closed room conservation | **PASS** | max\|∇·u\| 1.0e-5 1/s (criterion 1e-4); kinetic energy fell every step after stirring (0 increases); mean T drift 1.8e-12 K = 5e-11% of the 3.9 K initial spread (criterion 1%, tightened 2026-09-24) | 2026-09-24 |
+| V5 | Fan jet decay (**calibration**) | **PASS** | c_f = 0.2: centreline V_x/V_0 within −21.8% … +12.3% of K·√A₀/x over 2.91–5 m (criterion ±25%) | 2026-09-25 |
+| V6 | Closed room conservation | **PASS** | Real 20" box fan (off at 10 s). max\|∇·u\| 1.0e-5 1/s (criterion 1e-4); kinetic energy fell every step after switch-off (0 increases); mean T drift 3.5e-12 K = 9e-11% of the 3.9 K initial spread (criterion 1%) | 2026-09-25 |
 | V7 | Stack sign | **PASS** | 80 °F in / 60 °F out, openings at 0.5 m and 2.0 m: +302 CFM in low, −314 CFM out high; reverses when colder inside | 2026-09-24 |
-| V8 | Well-mixed sanity | not yet implemented | — | — |
+| V8 | Well-mixed sanity | **PASS** | 4 × 4 m room, one inlet, one offset outlet: room-average age 0.76·τ_n (criterion 0.5–1.5) | 2026-09-25 |
 | V9 | CONTAM cross-check (manual) | not yet implemented | — | — |
 
 ## Supporting tests (non-physics)
@@ -21,7 +21,7 @@ Latest results for the validation suite in SCIENCE.md §8. Update this file when
 | Unit conversions (`tests/units_test.js`) | PASS (13/13) | 2026-09-24 |
 | Constants sanity (`tests/constants_test.js`) | PASS (6/6) | 2026-09-24 |
 | Layer A building blocks (`tests/envelope_test.js`) | PASS (21/21) | 2026-09-24 |
-| Layer B building blocks (`tests/fluid_test.js`) | PASS (10/10) | 2026-09-24 |
+| Layer B building blocks (`tests/fluid_test.js`) | PASS (10/10) | 2026-09-25 |
 
 ## Notes
 
@@ -29,3 +29,7 @@ Latest results for the validation suite in SCIENCE.md §8. Update this file when
 - **2026-09-24, Phase 3, V1:** "within 5%" is read as max |model − Ghia| ≤ 0.05 × lid speed at Ghia's tabulated points. A per-point relative error isn't usable because several reference values are near zero (e.g. u = 0.00332). Interpretation confirmed by Marty 2026-09-24 and recorded in SCIENCE.md §8. Ghia data were checked against a published transcription (links in `tests/v1_cavity.js`); the Re 400 point at x = 0.9063 is a known typo and is skipped. The full V1 run takes about 3.5 minutes (the 128² cases dominate).
 - **2026-09-24, Phase 3, V2:** driven by fixed pressures at both ends (the solver's pressure-outlet condition). The 0.72% error is uniform across the channel and shrinks in proportion to Δt (0.72% → 0.41% → 0.25% as Δt halves), leaving a ~0.1% spatial floor. This is the known O(Δt) splitting error of non-incremental projection (Stable Fluids) at no-slip walls. In a real room (ν_eff ≤ 0.05 m²/s, Δt ≤ 0.05 s, H ≈ 3 m) it is ≈ 8·ν·Δt/H² ≈ 0.2%.
 - **2026-09-24, Phase 3, V6:** stirring uses a stand-in actuator in the test (the SCIENCE.md §6.6 relaxation rule, 2 m/s, 0.5 m wide) because fans arrive in Phase 4; it will be replaced by `fans.js`. **Temperature drift caveat:** the criterion (0.1% of absolute temperature ≈ 0.29 K) passes, but the 0.138 K drift is 3.5% of the room's initial 4 K spread. Cause: semi-Lagrangian advection (as specified in §6.2) is not exactly conservative. It is a discretization error, not a bug: it falls ~3.3× when the grid is refined from 0.1 m to 0.05 m. **Resolved 2026-09-24 (Marty chose option B):** a heat-conservation correction was added after T advection (SCIENCE.md §6.2), and the V6 criterion was tightened to "drift < 1% of initial spread". Drift went from 0.138 K to 1.8e-12 K. Side effect: during a sharp cool front at an inlet, cells can briefly undershoot the inlet temperature (~0.3 K in a 10 K flush test), which then washes out completely.
+- **2026-09-25, Phase 4, fans:** the SCIENCE.md relaxation actuator delivered only 50% of a fan's rated flow (projection partly undid it each step). Fans are now fixed-flow actuators (face velocity held at U_cur·n̂, spin-up τ = 0.1 s), approved by Marty; SCIENCE.md §6.6 updated.
+- **2026-09-25, Phase 4, V8 / mixing floor:** without it, V8 failed (age 4.5·τ_n and rising): 2D recirculation eddies stayed sealed because Smagorinsky gives only ~1.7e-4 m²/s. A scalar mixing floor from Cheng et al. (2011), K_min = (0.52·ACH + 0.31 h⁻¹)·V^(2/3)/3600, brings it to 0.76·τ_n. **Caveat:** V8's room runs at ~100 ACH on the solver's basis, far beyond Cheng's measured 0.2–5.4 ACH, so the relation is extrapolated. At 5 ACH mixing, V8 would still fail (≈ 2.7·τ_n). Approved by Marty; SCIENCE.md §6.5 updated.
+- **2026-09-25, Phase 4, V5 calibration:** V5 is a calibration, not independent validation. The comparison range was changed from 1–5 m to K·√A₀ (≈ 2.9 m)–5 m with Marty's OK, because the main-zone formula predicts V_x > V_0 inside ~2.9 m. c_f sweep (worst error over the range): 0.004–0.12 → 40–76% (the 2D jet wanders, so its time-averaged centreline speed is low); 0.14 → 15% on a 60–240 s average but 27% on 60–420 s (regime boundary, rejected as not robust); 0.16 → 23%; **0.2 → 22% on both averaging windows (chosen)**; 0.25 → 27%; 0.3 → 32%; 0.4 → 40%. The model's decay is shallower than 1/x (−22% at 2.9 m, +12% at 5 m). c_f = 0.2 is ~50× a physical wall-friction value: it stands in for the 3D spreading a plan-view jet lacks. V5 takes ~3.5 minutes; the full suite now takes ~7.5 minutes.
+- **Open item for Phase 6 (coupling):** in plan view, an inlet of width w carries u_n·w per unit depth, which corresponds to Q_j·(H_room / h_opening) in 3D. Layer B's ACH (used for age of air and the mixing floor) is therefore ~H_room/h_opening (≈ 2× for a typical window) higher than Layer A's authoritative ACH. To decide when coupling the two layers.

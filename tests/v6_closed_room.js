@@ -3,14 +3,13 @@
 // Pass: max|∇·u| < 1e-4 after every projection; kinetic energy decays monotonically once
 // stirring stops; mean T drift < 1% of the initial temperature spread (tightened 2026-09-24,
 // see SCIENCE.md §8).
-//
-// PHASE 3 STAND-IN: fans arrive in Phase 4 (fans.js). Until then the stirring is a simple
-// actuator written here that uses the same relaxation rule as SCIENCE.md §6.6.
-// Phase 4 will replace it with the real fan model.
+// Stirring: a 20" box fan on high (fans.js), switched off (flow = 0, spins down) at 10 s.
+// Production settings: turbulence, drag and mixing floor on, free-slip walls.
 import { check, finish } from './lib.js';
 import { makeBox } from './_fluid_setup.js';
-import { step, computeDt, maxDivergence, kineticEnergy, fluidMean } from '../src/physics/fluid.js';
-import { DIVERGENCE_TOL, FAN_TAU } from '../src/constants.js';
+import { step, computeDt, maxDivergence, kineticEnergy, fluidMean, setFans } from '../src/physics/fluid.js';
+import { fanFromPreset } from '../src/physics/fans.js';
+import { DIVERGENCE_TOL, FAN_PRESETS, FAN_SPEED_FRACTIONS } from '../src/constants.js';
 
 // 4 m × 3 m room, 10 cm cells, real air properties, free-slip walls (the production settings).
 const FX = 40, FY = 30, h = 0.1;
@@ -26,21 +25,15 @@ let tMin = Infinity, tMax = -Infinity;
 for (let c = 0; c < s.T.length; c++) if (s.kind[c] === 1) { tMin = Math.min(tMin, s.T[c]); tMax = Math.max(tMax, s.T[c]); }
 const SPREAD = tMax - tMin;
 
-// Stand-in stirrer: 0.5 m wide, 2 cells deep, blowing +x at 2 m/s, 1 m from the west wall.
-const STIR_I = [11, 12], STIR_J = [13, 14, 15, 16, 17], U_STIR = 2;
-function stir(dt) {
-  const r = 1 - Math.exp(-dt / FAN_TAU);
-  for (const i of STIR_I) for (const j of STIR_J) {
-    const f = i + j * (s.nx + 1);
-    s.u[f] += (U_STIR - s.u[f]) * r;
-  }
-}
+// Box fan 1 m from the west wall, mid-height of the plan, blowing east (+x).
+const fan = fanFromPreset(FAN_PRESETS.box20, FAN_SPEED_FRACTIONS.high, h + 1.0, h + 1.55, 0);
+setFans(s, [fan]);
 
 let maxDiv = 0, steps = 0, keGrowths = 0, worstGrowth = 0, kePrev = Infinity, keAtStop = 0;
 while (s.time < T_END) {
   const dt = computeDt(s);
   const stirring = s.time < T_STIR;
-  if (stirring) stir(dt);
+  if (!stirring) fan.flow = 0; // switch off; the fan spins down with τ
   step(s, dt);
   steps++;
   maxDiv = Math.max(maxDiv, maxDivergence(s));

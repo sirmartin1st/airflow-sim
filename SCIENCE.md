@@ -239,13 +239,14 @@ Based on Stam, "Stable Fluids" (SIGGRAPH 1999), with the upgrades noted:
 5. **Project**: solve the pressure Poisson equation `∇²p = (ρ/Δt)∇·u*`, then `u = u* − (Δt/ρ)∇p`. Use **preconditioned conjugate gradient** (incomplete Cholesky or Jacobi preconditioner). Plain Jacobi is too slow to converge on 100+ cell grids. Target residual: max |∇·u| < 1e-4 s⁻¹.
 6. **Advect/diffuse scalars** T and A with the projected velocity, then add the age source (+Δt to A in every fluid cell).
 
-**Heat-conservation correction for T** (added 2026-09-24, approved by Marty). Semi-Lagrangian advection, including BFECC, is not exactly conservative. In V6 it drifted the room-mean temperature by 0.14 K in 60 s (3.5% of a 4 K spread), and the drift shrank ~3.3× when Δ was halved, so it is discretization error, not a bug. After advecting T, each zone's total Σ T_c is reset to what conservation requires:
+**Heat-conservation correction for T** (added 2026-09-24, approved by Marty). Semi-Lagrangian advection, including BFECC, is not exactly conservative. In V6 it drifted the room-mean temperature by 0.14 K in 60 s (3.5% of a 4 K spread), and the drift shrank ~3.3× when Δ was halved, so it is discretization error, not a bug. After advecting and diffusing T, each zone's total Σ T_c is reset to what conservation requires:
 
 ```
 Σ T_c (after) = Σ T_c (before) + (Δt/Δ) · Σ_boundary faces u_in · T_upwind
+                               + (Δt/Δ²) · Σ_inlet faces κ_face · (T_inlet − T_c,new)
 ```
 
-The sum runs over faces between the zone and INLET/OUTLET cells. u_in is the face velocity into the zone, and T_upwind is the inlet temperature for inflow or the cell's own temperature for outflow. The difference is added uniformly to every cell in the zone. This is a global, uniform variant of the "mass fixers" used with semi-Lagrangian advection in weather models (e.g. Priestley 1993, *Monthly Weather Review* 121, 621–629). Diffusion (zero-flux walls) and the two-way exchange source are left untouched: the first is already conservative, and the second is a deliberate source. The age tracer A is not corrected; revisit if V8 needs it.
+The sum runs over faces between the zone and INLET/OUTLET cells. u_in is the face velocity into the zone, and T_upwind is the inlet temperature for inflow or the cell's own temperature for outflow. The difference is added uniformly to every cell in the zone. This is a global, uniform variant of the "mass fixers" used with semi-Lagrangian advection in weather models (e.g. Priestley 1993, *Monthly Weather Review* 121, 621–629). The second line is the heat conducted across inlet faces by the implicit diffusion step, evaluated with the final, corrected temperatures (the uniform shift δ is solved for exactly: δ = (target − Σ T_c) / (N + Σ_inlet Δt·κ_face/Δ²)). Applying the correction after diffusion (moved there 2026-09-25) also absorbs the small imbalance left when the iterative diffusion solve stops at its tolerance, which grew once the mixing floor (§6.5) raised κ. The two-way exchange source runs after the correction and is left untouched: it is a deliberate source. The age tracer A is not corrected; revisit if V8 needs it.
 
 Known side effect: when a sharp temperature front enters through an inlet, BFECC admits slightly less of the incoming air at the boundary than the face flux carries, and the uniform correction spreads that difference across the zone. In the flush test (`tests/fluid_test.js`: 10 K front, 0.5 m/s) cells briefly undershoot the inlet temperature by up to ~0.3 K, then the undershoot washes out entirely.
 
@@ -290,12 +291,27 @@ f_drag = (c_f / H_room) · |u| · u
 
 with H_room the ceiling height and c_f a friction coefficient. Start at c_f = 0.004 and **calibrate** once against V5 (fan jet decay). Record the calibrated value and the test result in `src/constants.js`. Don't tune it by eye.
 
+**Scalar mixing floor** (added 2026-09-25, approved by Marty). V8 showed that the plan-view solver mixes T and age far too weakly. In a 4 × 4 m room with one inlet and one outlet, recirculation eddies stayed almost sealed. Room-average age reached 4.5·τ_n and was still rising, and Smagorinsky gave a mean ν_t of only ~1.7e-4 m²/s. Real rooms mix much more, through unresolved 3D turbulence. Cheng et al. (2011) measured turbulent diffusion coefficients of K = 0.001–0.013 m²/s in naturally ventilated homes and found a linear relation between the mixing rate and the air change rate:
+
+```
+K / L² = 0.52 · ACH + 0.31      (h⁻¹; R² = 0.92, n = 11; L = V^(1/3))
+K_min  = (0.52 · ACH + 0.31) · L² / 3600          (m²/s)
+α_eff  = max( α + ν_t/Pr_t ,  K_min )             (for T and A only; momentum is unchanged)
+```
+
+- ACH is computed per zone from the inflow Layer B actually carries (3600 · Σ inflow per unit depth / floor area), so it is consistent with the age tracer. V = floor area × ceiling height.
+- **Caveat: this is an extrapolation.** Cheng et al. measured 0.2–5.4 ACH with natural ventilation and no fans. Strong cross-breezes can be 10–100 ACH on the solver's basis. V8 passes only with the relation extrapolated to the room's own ACH (≈ 100 h⁻¹ gives K_min ≈ 0.17 m²/s, still within the 0.001–0.2 m²/s range reported for occupational indoor settings). At 5 ACH it would still fail (age ≈ 2.7·τ_n).
+- Their K lumps together all mixing in rooms where advection was neglected. Using it as a floor (max), rather than adding it, limits double-counting with the resolved flow.
+- Effect on the UI: the age-of-air map still shows which areas the fresh air reaches last, but with this floor its absolute values are calibrated to room-average behaviour, not measured locally.
+
 ### 6.6 Fans (free-standing: box, pedestal, tower)
 
 Model each fan as an **actuator region**: a rectangle w_fan wide by 2 cells deep, facing direction n̂.
 
 - Target outlet velocity: `U_fan = Q_fan / A_fan`, where Q_fan = rated flow × speed fraction and A_fan = fan face area (w_fan × h_fan).
-- Each step, in the actuator cells, relax the normal velocity toward the target: `u_n ← u_n + (U_fan − u_n) · (1 − e^(−Δt/τ))`, τ = 0.1 s.
+- **Fixed-flow actuator** (changed 2026-09-25, approved by Marty). The faces inside the actuator region are held at the fan velocity, `u_face = U_cur · n̂` (x-faces get U_cur·n_x, y-faces U_cur·n_y). They are treated like inlet faces in the pressure solve, so the fan moves its rated flow whatever the pressure around it. This matches the fixed-flow treatment of window fans in §5.6.
+- Spin-up: the fan's current speed relaxes toward the target, `U_cur ← U_cur + (U_fan − U_cur) · (1 − e^(−Δt/τ))`, τ = 0.1 s, when it starts or its speed setting changes.
+- Why it changed: the original rule relaxed the face velocity toward U_fan by 1 − e^(−Δt/τ) each step, and the projection then partly undid it. Measured in a 10 × 10 m room with a 20" box fan, the fan delivered only 50% of its rated flow at τ = 0.1 s (72% at 0.03 s, 88% at 0.01 s, 95% at 0.001 s).
 - Intake behind the fan and the entrainment around the jet then come out of the incompressibility constraint naturally. Don't add them by hand.
 
 Preset fans (label as **typical; check your fan's rating**, since real products vary a lot):
@@ -344,7 +360,7 @@ Every test lives in `tests/` and runs in Node with no browser. Record results in
 | V2 | **Plane Poiseuille channel** (ν only, pressure-driven) | Viscous terms and walls correct | Profile within 2% of analytic parabola (note: uses no-slip walls for this test only) |
 | V3 | **Two-opening network**, opposite walls, areas A1, A2, Cp1 = 0.6, Cp2 = −0.36, no ΔT | Layer A equations and solver | Q equals `C_d · U_H · sqrt(ΔCp) / sqrt(1/A1² + 1/A2²)` to 1e-6 relative |
 | V4 | **Cp(β) table** in §5.3 | Correlation typed correctly | Matches table to ±0.002 |
-| V5 | **Fan jet decay**: 20" box fan in a large empty room (10 × 10 m) | Interior jets have realistic reach (calibrates c_f) | Centerline velocity follows `V_x / V_0 = K · sqrt(A_0) / x`, K ≈ 5.7 (compact jet, ASHRAE/AIVC), within ±25% over 1–5 m. Note: this is a calibration, not independent validation. Say so in VALIDATION.md. |
+| V5 | **Fan jet decay**: 20" box fan in a large empty room (10 × 10 m) | Interior jets have realistic reach (calibrates c_f) | Centerline velocity follows `V_x / V_0 = K · sqrt(A_0) / x`, K ≈ 5.7 (compact jet, ASHRAE/AIVC), within ±25% from x = K·sqrt(A_0) (≈ 2.9 m for a 20" box fan) to 5 m, x measured from the fan face. Changed 2026-09-25 with Marty's OK: the original range of 1–5 m includes the jet's core region, where the main-zone formula doesn't apply (at 1 m it predicts V_x = 2.9·V_0). Note: this is a calibration, not independent validation. Say so in VALIDATION.md. |
 | V6 | **Closed room conservation**: no openings, fan off after 10 s, initial temperature gradient | Stability and conservation | max |∇·u| < 1e-4 after every projection; kinetic energy decays monotonically; mean T drift < 1% of the initial temperature spread (max − min). Tightened 2026-09-24 with Marty's OK: the original "0.1% of mean T" in kelvin allowed ≈ 0.29 K, too loose to catch the advection drift |
 | V7 | **Stack sign**: warm inside, cool outside, one low and one high opening, no wind | Stack sign convention | Inflow at the low opening, outflow at the high one |
 | V8 | **Well-mixed sanity**: one inlet, one outlet, steady | Age tracer and ACH consistent | Room-average age between 0.5·τ_n and 1.5·τ_n |
@@ -369,6 +385,7 @@ Every test lives in `tests/` and runs in Node with no browser. Record results in
 - Ghia, U., Ghia, K. N., Shin, C. T. (1982). "High-Re solutions for incompressible flow using the Navier-Stokes equations and a multigrid method." *J. Computational Physics* 48, 387–411.
 - ASHRAE Handbook—Fundamentals: chapters on Airflow Around Buildings, Ventilation and Infiltration, and Space Air Diffusion.
 - ANSI/ASHRAE Standard 55, Thermal Environmental Conditions for Human Occupancy (elevated air speed).
+- Cheng, K.-C., Acevedo-Bolton, V., Jiang, R.-T., Klepeis, N. E., Ott, W. R., Fringer, O. B., Hildemann, L. M. (2011). "Modeling exposure close to air pollution sources in naturally ventilated residences: association of turbulent diffusion coefficient with air change rate." *Environmental Science & Technology* 45, 4016–4022.
 - Priestley, A. (1993). "A quasi-conservative version of the semi-Lagrangian advection scheme." *Monthly Weather Review* 121, 621–629.
 - Swami, M. V. & Chandra, S. (1988). "Correlations for pressure distribution on buildings and calculation of natural-ventilation airflow." *ASHRAE Transactions* 94(1). Summary: https://www.aivc.org/sites/default/files/airbase_3283.pdf
 - de Gids, W. & Phaff, H. (1982). "Ventilation rates and energy consumption due to open windows." *Air Infiltration Review* 4(1). Summarized in: https://engineering.purdue.edu/~yanchen/paper/2003-11.pdf

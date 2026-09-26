@@ -13,7 +13,7 @@ const G = (8 * RHO * NU * UMAX) / (H * H);          // pressure gradient for u_m
 const LP = (NX + 1) * h;                             // distance between the two Dirichlet cell centres
 const T_END = 60;                                    // 3 viscous times H²/ν; slowest mode decays by e^−30
 
-const s = makeBox(NX, NY, { h, nu: NU, rho: RHO, noSlip: true }, (st) => {
+const s = makeBox(NX, NY, { h, nu: NU, rho: RHO, noSlip: true, smagorinsky: 0, cf: 0, mixingFloor: false }, (st) => {
   const nx = st.nx;
   for (let j = 1; j <= NY; j++) {
     st.kind[0 + j * nx] = CELL.OUTLET; st.pBC[0 + j * nx] = G * LP;   // high pressure end

@@ -41,11 +41,24 @@ export const C_SMAGORINSKY = 0.17;
 export const NU_T_MAX = 0.05;
 
 /**
- * Floor/ceiling friction coefficient for depth-averaged drag. SCIENCE.md §6.5.
- * STARTING VALUE ONLY: must be calibrated against V5 (fan jet decay) in Phase 4,
- * then this comment updated with "calibrated in V5 on <date>".
+ * Scalar mixing floor K_min = (slope · ACH + intercept) · L² / 3600, L = V^(1/3). SCIENCE.md §6.5.
+ * Cheng et al. (2011), Environ. Sci. Technol. 45, 4016–4022: K/L² vs ACH regression,
+ * R² = 0.92, n = 11, measured at 0.2–5.4 ACH (natural ventilation). Extrapolated above that range.
  */
-export const C_F_DRAG = 0.004;
+export const MIXING_FLOOR_SLOPE = 0.52;          // dimensionless (h⁻¹ per h⁻¹)
+export const MIXING_FLOOR_INTERCEPT = 0.31;      // h⁻¹
+
+/**
+ * Floor/ceiling friction coefficient for depth-averaged drag. SCIENCE.md §6.5.
+ * Calibrated in V5 on 2026-09-25 (20" box fan, 10 × 10 m room, fixed-flow fan actuator):
+ * c_f = 0.2 gives a worst error of 22% (criterion ±25%) over K·sqrt(A_0)–5 m, and the same 22%
+ * whether the jet is averaged over 60–240 s or 60–420 s. Sweep: 0.004–0.12 → 40–76% (the jet
+ * wanders, so its time-averaged centreline speed is low); 0.14 → 15% but 27% on the longer
+ * average (regime boundary, not robust); 0.16 → 23%; 0.25 → 27%; 0.3 → 32%; 0.4 → 40%.
+ * Far larger than a physical wall-friction value (~0.004): it stands in for the sideways and
+ * vertical spreading a 3D jet has and a plan-view jet doesn't. Starting value was 0.004.
+ */
+export const C_F_DRAG = 0.2;
 
 // ---------------------------------------------------------------------------
 // Envelope model (Layer A) — SCIENCE.md §5
@@ -162,7 +175,7 @@ export const DIFFUSION_REL_TOL = 1e-8;
 /** Safety cap on Gauss-Seidel sweeps per implicit diffusion solve. Numerical choice. */
 export const DIFFUSION_MAX_ITER = 500;
 
-/** Fan actuator relaxation time constant, s. SCIENCE.md §6.6. */
+/** Fan spin-up time constant, s: current fan speed relaxes toward its setting. SCIENCE.md §6.6. */
 export const FAN_TAU = 0.1;
 
 /** Fan actuator depth, cells. SCIENCE.md §6.6. */

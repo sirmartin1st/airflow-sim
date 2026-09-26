@@ -13,7 +13,8 @@
 //
 // Face states, derived from the cells on each side:
 //   ACTIVE   — FLUID|FLUID or FLUID|OUTLET: solved (advected, diffused, projected)
-//   FIXED    — FLUID|SOLID or FLUID|INLET: velocity prescribed by the non-fluid cell
+//   FIXED    — FLUID|SOLID or FLUID|INLET: velocity prescribed by the non-fluid cell;
+//              also faces held by a fan (fixed-flow actuator, §6.6)
 //   INACTIVE — everything else; holds ghost values used for interpolation and wall stencils
 //
 // Everything here is SI and DOM-free (CLAUDE.md rules 3 and 4). All working arrays are
@@ -22,15 +23,18 @@
 // round-off stays far below the V6 divergence tolerance).
 
 import {
-  NU_AIR, ALPHA_AIR, REFERENCE_TEMPERATURE, DEFAULT_CEILING_HEIGHT,
+  NU_AIR, ALPHA_AIR, REFERENCE_TEMPERATURE, DEFAULT_CEILING_HEIGHT, C_SMAGORINSKY, C_F_DRAG,
   CFL, DT_MAX, DIVERGENCE_TOL,
   PCG_TOL_FRACTION, PCG_MAX_ITER, DIFFUSION_REL_TOL, DIFFUSION_MAX_ITER,
 } from '../constants.js';
 import { airDensity } from './envelope.js';
 import { createPCG, buildPreconditioner, solvePCG } from './pcg.js';
 
-export const CELL = Object.freeze({ SOLID: 0, FLUID: 1, INLET: 2, OUTLET: 3 });
-export const FACE = Object.freeze({ INACTIVE: 0, ACTIVE: 1, FIXED: 2 });
+import { CELL, FACE } from './cells.js';
+import { updateEddyViscosity, applyMixingFloor, applyDrag } from './turbulence.js';
+import { markFanFaces, updateFanSpeeds } from './fans.js';
+
+export { CELL, FACE };
 
 const { SOLID, FLUID, INLET, OUTLET } = CELL;
 const { INACTIVE, ACTIVE, FIXED } = FACE;
@@ -48,7 +52,10 @@ const { INACTIVE, ACTIVE, FIXED } = FACE;
  * @param opts.rho           density used to convert the projection pressure to Pa
  * @param opts.noSlip        tangential wall condition: false = free-slip (default, SCIENCE.md §6.4),
  *                           true = no-slip (validation tests V1 and V2 only)
- * @param opts.ceilingHeight m, used for the exchange band volume (§6.4)
+ * @param opts.smagorinsky   Smagorinsky constant C_s (default §6.5 value; 0 turns turbulence off)
+ * @param opts.cf            floor/ceiling drag coefficient c_f (default constants.js; 0 turns drag off)
+ * @param opts.mixingFloor   apply the scalar mixing floor of §6.5 (default true)
+ * @param opts.ceilingHeight m: drag depth H_room (§6.5) and exchange band volume (§6.4)
  * @param opts.T0            initial temperature, K
  */
 export function createFluid(opts) {
@@ -59,13 +66,22 @@ export function createFluid(opts) {
     rho = airDensity(REFERENCE_TEMPERATURE),
     noSlip = false,
     ceilingHeight = DEFAULT_CEILING_HEIGHT,
+    smagorinsky = C_SMAGORINSKY,
+    cf = C_F_DRAG,
+    mixingFloor = true,
     T0 = REFERENCE_TEMPERATURE,
   } = opts;
   if (nx < 2 || ny < 2) throw new Error('grid must be at least 2 × 2 cells');
   const nc = nx * ny, nuF = (nx + 1) * ny, nvF = nx * (ny + 1);
   const s = {
     nx, ny, h, rho, noSlip, ceilingHeight,
+    Cs: smagorinsky, cf, mixingFloor, nuBase: nu, alphaBase: alpha,
     time: 0,
+
+    // Free-standing fans (fans.js format). Change with setFans() (§6.6).
+    fans: [],
+    fanU: new Uint16Array(nuF),            // fan index + 1 holding each u-face (0 = none)
+    fanV: new Uint16Array(nvF),
 
     kind: new Uint8Array(nc),
     bu: new Float64Array(nc),              // velocity of SOLID / INLET cells, m/s
@@ -82,7 +98,7 @@ export function createFluid(opts) {
     T: new Float64Array(nc).fill(T0),      // temperature, K
     A: new Float64Array(nc),               // age of air, s
 
-    // Effective diffusivities per cell. Phase 3: molecular only. Phase 4 adds ν_t (§6.5).
+    // Effective diffusivities per cell: ν + ν_t and α + ν_t/Pr_t, updated each step (§6.5).
     nuCell: new Float64Array(nc).fill(nu),
     kappaCell: new Float64Array(nc).fill(alpha),
 
@@ -107,6 +123,7 @@ export function createFluid(opts) {
     _compSum: new Float64Array(0),
     _compCount: new Float64Array(0),
     _heat: new Float64Array(0),
+    _heatS: new Float64Array(0),
     _queue: new Int32Array(nc),
   };
   // Ghost-fill closures, created once so step() doesn't allocate.
@@ -136,9 +153,25 @@ export function setCells(s) {
     }
   }
 
+  // Fan-held faces become FIXED (fixed-flow actuator, §6.6).
+  markFanFaces(s);
+  for (let f = 0; f < faceU.length; f++) if (s.fanU[f] && faceU[f] === ACTIVE) faceU[f] = FIXED;
+  for (let f = 0; f < faceV.length; f++) if (s.fanV[f] && faceV[f] === ACTIVE) faceV[f] = FIXED;
+
   labelComponents(s);
   buildPressureMatrix(s);
   applyBoundaryConditions(s);
+}
+
+/**
+ * Replaces the fans (fans.js format) and rebuilds the face states and pressure matrix.
+ * Only needed when fans are added, removed, moved or rotated. To change a fan's speed setting,
+ * just set fan.flow; it spins up with τ (§6.6).
+ */
+export function setFans(s, fans) {
+  for (const fan of fans) if (fan.speed === undefined) fan.speed = 0;
+  s.fans = fans;
+  setCells(s);
 }
 
 function faceState(ka, kb) {
@@ -181,6 +214,7 @@ function labelComponents(s) {
   s._compSum = new Float64Array(n);
   s._compCount = new Float64Array(n);
   s._heat = new Float64Array(n);
+  s._heatS = new Float64Array(n);
 }
 
 // Pressure matrix for the scaled pressure p̂ = p·Δt/ρ (SCIENCE.md §6.2 step 5):
@@ -207,13 +241,14 @@ function buildPressureMatrix(s) {
 // Boundary conditions — SCIENCE.md §6.4
 // ---------------------------------------------------------------------------
 
-/** Writes prescribed velocities into FIXED faces and fills ghost values. */
+/** Writes prescribed velocities into FIXED faces (walls, inlets, fans) and fills ghost values. */
 export function applyBoundaryConditions(s) {
-  const { nx, ny, kind, faceU, faceV, bu, bv, u, v } = s;
+  const { nx, ny, kind, faceU, faceV, bu, bv, u, v, fanU, fanV, fans } = s;
   for (let j = 0; j < ny; j++) {
     for (let i = 0; i <= nx; i++) {
       const f = i + j * (nx + 1);
       if (faceU[f] !== FIXED) continue;
+      if (fanU[f]) { const fan = fans[fanU[f] - 1]; u[f] = fan.speed * Math.cos(fan.angle); continue; }
       const left = i > 0 ? i - 1 + j * nx : -1, right = i < nx ? i + j * nx : -1;
       const wall = left >= 0 && kind[left] !== FLUID ? left : right;
       u[f] = wall >= 0 && kind[wall] !== FLUID ? bu[wall] : 0;
@@ -223,6 +258,7 @@ export function applyBoundaryConditions(s) {
     for (let i = 0; i < nx; i++) {
       const f = i + j * nx;
       if (faceV[f] !== FIXED) continue;
+      if (fanV[f]) { const fan = fans[fanV[f] - 1]; v[f] = fan.speed * Math.sin(fan.angle); continue; }
       const below = j > 0 ? i + (j - 1) * nx : -1, above = j < ny ? i + j * nx : -1;
       const wall = below >= 0 && kind[below] !== FLUID ? below : above;
       v[f] = wall >= 0 && kind[wall] !== FLUID ? bv[wall] : 0;
@@ -415,9 +451,12 @@ function advectScalar(s, a, fillGhost, dt) {
 }
 
 // Heat-conservation correction for T — SCIENCE.md §6.2 step 6 (approved 2026-09-24).
-// Semi-Lagrangian advection isn't exactly conservative. Before advecting, record each zone's
-// required total: Σ T_c + (Δt/Δ) · Σ_boundary faces u_in · T_upwind. After advecting, shift the
-// zone uniformly so its total matches.
+// Semi-Lagrangian advection isn't exactly conservative, and the iterative diffusion solve is only
+// conservative to its tolerance. Before advecting, record each zone's required total:
+// Σ T_c + (Δt/Δ) · Σ_boundary faces u_in · T_upwind. After diffusing, add the heat conducted across
+// inlet faces and shift the zone uniformly by δ so its total matches. The conducted heat uses the
+// final temperatures (T_c + δ), so δ is solved for exactly:
+//   Σ T_c + N·δ = H + Σ_inlet k·κ·(T_in − T_c − δ)  ⇒  δ = (H + Σ k·κ·(T_in − T_c) − Σ T_c) / (N + Σ k·κ)
 
 // Inflow (m/s, positive into the fluid cell) times upwind temperature, for a face whose other
 // side has kind kn. Only INLET/OUTLET faces carry heat across the zone boundary.
@@ -444,17 +483,34 @@ function recordHeatTargets(s, dt) {
   }
 }
 
-function correctHeat(s) {
-  const { kind, T, _comp: comp, _heat: heat, _compSum: actual, _compCount: count } = s;
-  actual.fill(0); count.fill(0);
-  for (let c = 0; c < T.length; c++) {
-    if (kind[c] !== FLUID) continue;
-    actual[comp[c]] += T[c]; count[comp[c]] += 1;
+function correctHeat(s, dt) {
+  const { nx, ny, h, kind, T, TBC, kappaCell, _comp: comp, _heat: heat, _heatS: S, _compSum: actual, _compCount: count } = s;
+  const k = dt / (h * h);
+  actual.fill(0); count.fill(0); S.fill(0);
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const c = i + j * nx;
+      if (kind[c] !== FLUID) continue;
+      const z = comp[c];
+      actual[z] += T[c]; count[z] += 1;
+      // heat conducted in from INLET neighbours during the implicit diffusion step
+      for (let q = 0; q < 4; q++) {
+        let n;
+        if (q === 0) { if (i === 0) continue; n = c - 1; }
+        else if (q === 1) { if (i === nx - 1) continue; n = c + 1; }
+        else if (q === 2) { if (j === 0) continue; n = c - nx; }
+        else { if (j === ny - 1) continue; n = c + nx; }
+        if (kind[n] !== INLET) continue;
+        const kk = k * 0.5 * (kappaCell[c] + kappaCell[n]);
+        heat[z] += kk * (TBC[n] - T[c]);
+        S[z] += kk;
+      }
+    }
   }
   for (let c = 0; c < T.length; c++) {
     if (kind[c] !== FLUID) continue;
     const z = comp[c];
-    T[c] += (heat[z] - actual[z]) / count[z];
+    T[c] += (heat[z] - actual[z]) / (count[z] + S[z]);
   }
 }
 
@@ -716,23 +772,23 @@ export function computeDt(s) {
   return m > 0 ? Math.min((CFL * s.h) / m, DT_MAX) : DT_MAX;
 }
 
-/**
- * Advances the flow by dt seconds. SCIENCE.md §6.2.
- * Callers apply fan forcing (§6.6) to s.u / s.v before calling this.
- */
+/** Advances the flow by dt seconds. SCIENCE.md §6.2. */
 export function step(s, dt) {
-  applyBoundaryConditions(s);                 // 1. boundary conditions
+  updateFanSpeeds(s, dt);                     // 1. fan spin-up (§6.6) and boundary conditions
+  applyBoundaryConditions(s);
+  updateEddyViscosity(s);                     //    ν_t from the current velocity (§6.5)
+  if (s.mixingFloor) applyMixingFloor(s);     //    scalar mixing floor (§6.5)
   advectVelocity(s, dt);                      // 2. BFECC advection of u
-  const d1 = diffuseU(s, dt);                 // 3. implicit viscous diffusion
+  const d1 = diffuseU(s, dt);                 // 3. implicit diffusion with ν + ν_t
   const d2 = diffuseV(s, dt);
-  // 4. floor/ceiling drag (§6.5) is added in Phase 4.
+  applyDrag(s, dt);                           // 4. floor/ceiling drag (§6.5)
   project(s, dt);                             // 5. pressure projection (PCG)
   recordHeatTargets(s, dt);                   // 6. scalars with the projected velocity
   advectScalar(s, s.T, s._ghostT, dt);
-  correctHeat(s);                             //    heat-conservation correction (§6.2)
   advectScalar(s, s.A, s._ghostA, dt);
   const d3 = diffuseScalar(s, s.T, s.TBC, dt);
   const d4 = diffuseScalar(s, s.A, null, dt);
+  correctHeat(s, dt);                         //    heat-conservation correction (§6.2)
   applyScalarSources(s, dt);
   s.stats.diffusionSweeps = Math.max(d1, d2, d3, d4);
   s.time += dt;

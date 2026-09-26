@@ -32,7 +32,7 @@ const T_MAX = 100;         // give up after this many lid-crossing times
 
 function runCavity(N, Re) {
   const h = L / N;
-  const s = makeBox(N, N, { h, nu: (U_LID * L) / Re, rho: 1, noSlip: true }, (st) => {
+  const s = makeBox(N, N, { h, nu: (U_LID * L) / Re, rho: 1, noSlip: true, smagorinsky: 0, cf: 0, mixingFloor: false }, (st) => {
     for (let i = 1; i <= N; i++) st.bu[i + (N + 1) * st.nx] = U_LID; // top row of the solid ring moves
   });
   const prevU = new Float64Array(s.u.length);
