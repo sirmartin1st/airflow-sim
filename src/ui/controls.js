@@ -16,6 +16,7 @@ export const DEFAULT_CONDITIONS = Object.freeze({
 });
 
 export const SIM_SPEEDS = Object.freeze([1, 5, 20]);
+export const DEFAULT_VIEW = Object.freeze({ particles: true, arrows: false, overlay: 'none' });
 
 const COMPASS = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 export const compassName = (deg) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
@@ -26,9 +27,11 @@ const TERRAIN_LABELS = { open: 'Open (flat, few obstructions)', suburban: 'Subur
  * @param opts.conditions  initial conditions (SI)
  * @param opts.onConditions(conditions)       any condition changed
  * @param opts.onPlay(playing), opts.onReset(), opts.onSpeed(multiplier)
+ * @param opts.view, opts.onView(view)   display options { particles, arrows, overlay }
  */
-export function createControls(root, { conditions, onConditions, onPlay, onReset, onSpeed }) {
+export function createControls(root, { conditions, onConditions, onPlay, onReset, onSpeed, view = DEFAULT_VIEW, onView }) {
   let cond = { ...conditions };
+  let viewState = { ...view };
   let playing = false;
 
   const emit = (patch) => { cond = { ...cond, ...patch }; onConditions(cond); };
@@ -63,6 +66,20 @@ export function createControls(root, { conditions, onConditions, onPlay, onReset
   const ceiling = numberField('Ceiling height (ft)', round1(mToFt(cond.ceilingHeight)), 6, 20, 0.5,
     (v) => emit({ ceilingHeight: ftToM(v) }));
 
+  // --- view options ---
+  const setView = (patch) => { viewState = { ...viewState, ...patch }; onView?.(viewState); };
+  const particlesBox = h('input', { type: 'checkbox' }); particlesBox.checked = viewState.particles;
+  particlesBox.addEventListener('change', () => setView({ particles: particlesBox.checked }));
+  const arrowsBox = h('input', { type: 'checkbox' }); arrowsBox.checked = viewState.arrows;
+  arrowsBox.addEventListener('change', () => setView({ arrows: arrowsBox.checked }));
+  const overlaySel = h('select', {},
+    h('option', { value: 'none' }, 'None'),
+    h('option', { value: 'speed' }, 'Air speed'),
+    h('option', { value: 'age' }, 'Age of air (where fresh air reaches last)'),
+    h('option', { value: 'stagnant' }, 'Stagnant areas'));
+  overlaySel.value = viewState.overlay;
+  overlaySel.addEventListener('change', () => setView({ overlay: overlaySel.value }));
+
   const results = h('div', { class: 'results' });
   root.replaceChildren(
     h('h2', {}, 'Simulation'),
@@ -73,18 +90,24 @@ export function createControls(root, { conditions, onConditions, onPlay, onReset
     orientation, windSpeed, windFrom, tout, tin,
     h('label', {}, 'Surroundings', terrain),
     ceiling,
+    h('h3', {}, 'View'),
+    h('label', { class: 'check' }, particlesBox, ' Particle trails (paths air takes, coloured by temperature)'),
+    h('label', { class: 'check' }, arrowsBox, ' Arrows (direction and speed)'),
+    h('label', {}, 'Colour overlay', overlaySel),
   );
 
   return {
     setPlaying,
     isPlaying: () => playing,
     /** Updates the clock line. simTime in s; achieved = actual sim-seconds per real second. */
-    setClock(simTime, requested, achieved) {
+    setClock(simTime, requested, achieved, fps, where) {
       const m = Math.floor(simTime / 60), s = Math.floor(simTime % 60);
       let text = `Simulated time ${m}:${String(s).padStart(2, '0')}`;
       if (playing && achieved !== null) {
         text += achieved < 0.9 * requested ? ` · running at ${achieved.toFixed(1)}× (limited by this computer)` : ` · ${requested}×`;
       }
+      if (fps) text += ` · ${Math.round(fps)} fps`;
+      if (fps && where) text += ` · solver: ${where}`;
       clock.textContent = text;
     },
     resultsElement: () => results,

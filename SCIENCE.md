@@ -363,7 +363,7 @@ Limitation: the corrections fix zone totals, not local values. Temperature and a
 
 - Seed 3,000–8,000 particles uniformly over fluid cells. Each has a lifetime of 3–8 s (randomized), then respawns at a random fluid cell. Particles also spawn at inflow openings proportional to Q_j.
 - Move with **RK2 (midpoint)** integration using bilinear interpolation of the staggered velocity.
-- Draw each particle's last ~20 positions as a fading polyline, width 1–1.5 px.
+- Draw each particle's last ~20 positions as a fading polyline, width 1–1.5 px. *Implementation (2026-09-28): trails are drawn into a separate layer that fades by 10% per frame while each particle adds its newest segment, the standard cheap equivalent of a ~20-point fading polyline. Trail length therefore grows with playback speed.*
 - **Color by local temperature**: diverging blue → light gray → red, centered on the midpoint between T_out and T_in at start (or a user setpoint). Blue = cooler, red = warmer. Show a legend with °F values.
 - Label these honestly in the UI: they are pathlines (where air parcels actually travel), not instantaneous streamlines.
 
@@ -375,7 +375,7 @@ Draw arrow glyphs on a coarse lattice (every ~0.5 m). Direction = local velocity
 
 - **ACH** per zone (from Layer A) and a plain-English label: < 1 "stale", 1–5 "light", 5–15 "good airing", > 15 "strong cross-breeze".
 - **Per-opening flow** in CFM with in/out arrows.
-- **Stagnant area %**: fraction of fluid cells with time-averaged |u| < 0.05 m/s. Optional overlay.
+- **Stagnant area %**: fraction of fluid cells with time-averaged |u| < 0.05 m/s. Optional overlay. *Time average: exponential moving average over 60 s of sim time (`STAGNANT_AVERAGING_TIME`, a display/metric choice).*
 - **Age of air map** (optional overlay): local mean age A. Shows which corners never get fresh air. For perfect mixing, room-average age equals the nominal time constant τ_n = V/Q_in.
 - **Comfort probes**: the user drops "person" markers. Each shows local speed and temperature over time. Reference points from ASHRAE Standard 55: air speed below about 0.2 m/s (40 fpm) is "still air"; higher speeds give a cooling effect that grows with speed. v2 can compute the actual cooling effect with the SET method used by ASHRAE 55 / the CBE Thermal Comfort Tool. Don't hard-code a degrees-of-cooling number without that model.
 - **Time to target**: sim time until zone mean temperature is within 1 °F of a user setpoint.

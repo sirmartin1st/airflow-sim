@@ -38,7 +38,9 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
     view: { scale: 1, ox: 0, oy: 0 },
     colors: {},
     tint: document.createElement('canvas'),
-    overlay: null,        // (ctx, view, colors, width) → draws the simulation on top of the plan
+    overlay: null,        // (ctx, view, colors, width, height) → drawn on top of the plan (arrows, labels)
+    underlay: null,       // (ctx, view, colors, width, height, dpr) → drawn over the indoor tint, under walls
+    dpr: 1,
   };
 
   // ---------------------------------------------------------------------------
@@ -86,6 +88,7 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
 
   function resize() {
     const dpr = window.devicePixelRatio || 1;
+    st.dpr = dpr;
     const cw = canvas.clientWidth;
     const ch = Math.round(cw * (st.layout.height / st.layout.width));
     canvas.style.height = `${ch}px`;
@@ -251,7 +254,8 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
     for (const name of ['panel', 'grid', 'grid-major', 'wall', 'window', 'door', 'closed', 'fan', 'fan-off', 'accent', 'warn', 'error',
-      'zone-a', 'zone-b', 'zone-c', 'zone-d', 'inlet', 'outlet', 'exchange', 'arrow', 'wind', 'text', 'muted']) {
+      'zone-a', 'zone-b', 'zone-c', 'zone-d', 'inlet', 'outlet', 'exchange', 'arrow', 'wind', 'text', 'muted',
+      't-cold', 't-mid', 't-hot', 'ov-speed', 'ov-age', 'ov-stagnant']) {
       st.colors[name] = cs.getPropertyValue(`--${name}`).trim() || '#888';
     }
   }
@@ -302,6 +306,9 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
       ctx.globalAlpha = 1;
     }
 
+    // Simulation fields and particle trails
+    if (st.underlay) st.underlay(ctx, { toScreen, scale }, { ...c, halo: c.panel }, cw, ch, st.dpr);
+
     // Walls
     const wallPx = Math.max(3, DEFAULT_CELL_SIZE * scale);
     ctx.lineCap = 'square';
@@ -320,7 +327,7 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
     for (const f of st.layout.fans) drawFan(f);
 
     // Simulation (arrows, flows, compass)
-    if (st.overlay) st.overlay(ctx, { toScreen, scale }, { ...c, halo: c.panel }, cw);
+    if (st.overlay) st.overlay(ctx, { toScreen, scale }, { ...c, halo: c.panel }, cw, ch);
 
     // Drag previews
     const d = st.drag;
@@ -514,9 +521,11 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
   resize();
 
   function setOverlay(fn) { st.overlay = fn; draw(); }
+  function setUnderlay(fn) { st.underlay = fn; draw(); }
+  const getColors = () => ({ ...st.colors, halo: st.colors.panel });
 
   return {
-    setTool, undo, redo, updateSelected, rotateSelected, deleteSelected, replaceLayout, setOverlay,
+    setTool, undo, redo, updateSelected, rotateSelected, deleteSelected, replaceLayout, setOverlay, setUnderlay, getColors,
     redraw: draw,
     getLayout: () => st.layout,
     getGrid: () => st.grid,

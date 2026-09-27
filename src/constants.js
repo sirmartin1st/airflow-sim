@@ -170,14 +170,20 @@ export const MIC_SIGMA = 0.25;
 /**
  * PCG stops when max|∇·u| after projection would be below this fraction of DIVERGENCE_TOL,
  * so the V6 check (max|∇·u| < DIVERGENCE_TOL) has margin for round-off. Numerical choice.
+ * 0.1 until 2026-09-28; 0.5 halves the margin but cuts PCG iterations ~40% (30 → 18 per step,
+ * apartment benchmark), ~15% faster overall. All validation tests re-run and pass.
  */
-export const PCG_TOL_FRACTION = 0.1;
+export const PCG_TOL_FRACTION = 0.5;
 
 /** Safety cap on PCG iterations per projection. Numerical choice; hitting it is reported in stats. */
 export const PCG_MAX_ITER = 2000;
 
-/** Implicit diffusion (Gauss-Seidel) stops when the largest update is below this × max|field|. Numerical choice. */
-export const DIFFUSION_REL_TOL = 1e-8;
+/**
+ * Implicit diffusion (Gauss-Seidel) stops when the largest update is below this × max|field|.
+ * Numerical choice. 1e-8 until 2026-09-28; 1e-6 (≈ 3e-4 K on temperatures in kelvin) cuts sweeps
+ * ~30% (11 → 8), ~7% faster overall. Any heat imbalance left is absorbed by the §6.2 correction.
+ */
+export const DIFFUSION_REL_TOL = 1e-6;
 
 /** Safety cap on Gauss-Seidel sweeps per implicit diffusion solve. Numerical choice. */
 export const DIFFUSION_MAX_ITER = 500;
@@ -221,6 +227,13 @@ export const ARROW_MIN_SPEED = 0.02;
 
 /** Time-averaged speed below which a cell counts as stagnant, m/s. SCIENCE.md §7.3. */
 export const STAGNANT_SPEED = 0.05;
+
+/**
+ * Averaging time for "time-averaged |u|" in the stagnant-area metric and overlay, s of sim time.
+ * SCIENCE.md §7.3 doesn't fix a window; 60 s smooths out swirl wander while still responding to
+ * changes. Display/metric choice, 2026-09-28 (exponential moving average).
+ */
+export const STAGNANT_AVERAGING_TIME = 60;
 
 /** ASHRAE 55 "still air" threshold, m/s (≈40 fpm). SCIENCE.md §7.3. */
 export const STILL_AIR_SPEED = 0.2;

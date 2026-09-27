@@ -28,6 +28,13 @@
   --arrow: #56607a;
   --wind: #1a9bb0;
   --primary: #1f6fd1;
+  /* temperature trails: diverging blue ↔ gray ↔ red (validated with the dataviz palette checker) */
+  --t-cold: #2a78d6;
+  --t-mid: #8d8d88;
+  --t-hot: #e34948;
+  --ov-speed: #1baf7a;
+  --ov-age: #4a3aa7;
+  --ov-stagnant: #e87ba4;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -61,6 +68,12 @@
     --arrow: #a9b2c3;
     --wind: #4cc9dc;
     --primary: #3d8fe6;
+    --t-cold: #3987e5;
+    --t-mid: #b0b0ab;
+    --t-hot: #d64a4a;
+    --ov-speed: #199e70;
+    --ov-age: #9085e9;
+    --ov-stagnant: #d55181;
   }
 }
 
@@ -71,6 +84,7 @@
   --error: #ff6b6b; --zone-a: #1f3550; --zone-b: #1f3d2a; --zone-c: #45361f; --zone-d: #33294a;
   --button: #232830; --button-active: #e6e8eb; --button-active-text: #14171c;
   --inlet: #5aa6ee; --outlet: #ff8a50; --exchange: #b39ae8; --arrow: #a9b2c3; --wind: #4cc9dc; --primary: #3d8fe6;
+  --t-cold: #3987e5; --t-mid: #b0b0ab; --t-hot: #d64a4a; --ov-speed: #199e70; --ov-age: #9085e9; --ov-stagnant: #d55181;
 }
 
 * { box-sizing: border-box; }

@@ -118,6 +118,10 @@ export function createFluid(opts) {
     _vMin: new Float64Array(nvF), _vMax: new Float64Array(nvF),
     _cF: new Float64Array(nc), _cB: new Float64Array(nc),
     _cMin: new Float64Array(nc), _cMax: new Float64Array(nc),
+    // Departure points of cell centres (lattice coordinates), traced once per step and shared by
+    // T and age: forward (−Δt) and backward (+Δt) passes of BFECC.
+    _depFx: new Float64Array(nc), _depFy: new Float64Array(nc),
+    _depBx: new Float64Array(nc), _depBy: new Float64Array(nc),
     _rhs: new Float64Array(Math.max(nuF, nvF, nc)),
     _pHat: new Float64Array(nc),
     _b: new Float64Array(nc),
@@ -456,10 +460,44 @@ function advectVelocity(s, dt) {
   advectBFECC(s, s.v, nx, ny + 1, 0.5, 0, s.faceV, ACTIVE, dt, s._u0, s._v0, s._ghostV, s._vF, s._vB, s._vMin, s._vMax);
 }
 
-function advectScalar(s, a, fillGhost, dt) {
-  fillGhost(a);
-  advectBFECC(s, a, s.nx, s.ny, 0.5, 0.5, s.kind, FLUID, dt, s.u, s.v, fillGhost, s._cF, s._cB, s._cMin, s._cMax);
+// Traces every FLUID cell centre through the projected velocity, forward and backward in time,
+// and stores the departure points so both scalars (T and age) reuse them.
+function traceScalarDepartures(s, dt) {
+  const { nx, ny, h, kind, u, v } = s;
+  for (let j = 0; j < ny; j++) {
+    for (let i = 0; i < nx; i++) {
+      const c = i + j * nx;
+      if (kind[c] !== FLUID) continue;
+      const x = (i + 0.5) * h, y = (j + 0.5) * h;
+      trace(s, x, y, dt, u, v);
+      s._depFx[c] = BT[0] / h - 0.5; s._depFy[c] = BT[1] / h - 0.5;
+      trace(s, x, y, -dt, u, v);
+      s._depBx[c] = BT[0] / h - 0.5; s._depBy[c] = BT[1] / h - 0.5;
+    }
+  }
 }
+
+// BFECC for a cell-centred scalar using the stored departure points (same result as advectBFECC).
+function advectScalarShared(s, a, fillGhost) {
+  const { nx, ny, kind } = s;
+  const fwd = s._cF, back = s._cB, mn = s._cMin, mx = s._cMax, n = nx * ny;
+  fillGhost(a);
+  for (let c = 0; c < n; c++) {
+    if (kind[c] !== FLUID) { fwd[c] = a[c]; continue; }
+    fwd[c] = lerp2mm(a, nx, ny, s._depFx[c], s._depFy[c]);
+    mn[c] = MM[0]; mx[c] = MM[1];
+  }
+  fillGhost(fwd);
+  for (let c = 0; c < n; c++) back[c] = kind[c] === FLUID ? lerp2(fwd, nx, ny, s._depBx[c], s._depBy[c]) : fwd[c];
+  for (let c = 0; c < n; c++) {
+    if (kind[c] !== FLUID) continue;
+    let val = fwd[c] + 0.5 * (a[c] - back[c]);
+    if (val < mn[c]) val = mn[c]; else if (val > mx[c]) val = mx[c];
+    a[c] = val;
+  }
+  fillGhost(a);
+}
+
 
 // Heat-conservation correction for T — SCIENCE.md §6.2 step 6 (approved 2026-09-24).
 // Semi-Lagrangian advection isn't exactly conservative, and the iterative diffusion solve is only
@@ -810,8 +848,9 @@ export function step(s, dt) {
   applyDrag(s, dt);                           // 4. floor/ceiling drag (§6.5)
   project(s, dt);                             // 5. pressure projection (PCG)
   recordHeatTargets(s, dt);                   // 6. scalars with the projected velocity
-  advectScalar(s, s.T, s._ghostT, dt);
-  advectScalar(s, s.A, s._ghostA, dt);
+  traceScalarDepartures(s, dt);                //    one trace, shared by T and age
+  advectScalarShared(s, s.T, s._ghostT);
+  advectScalarShared(s, s.A, s._ghostA);
   const d3 = diffuseScalar(s, s.T, s.TBC, dt);
   const d4 = diffuseScalar(s, s.A, null, dt);
   correctHeat(s, dt);                         //    heat-conservation correction (§6.2)

@@ -24,6 +24,7 @@ Latest results for the validation suite in SCIENCE.md §8. Update this file when
 | Layer B building blocks (`tests/fluid_test.js`) | PASS (10/10) | 2026-09-27 |
 | Layout model and grid (`tests/layout_test.js`) | PASS (17/17) | 2026-09-27 |
 | Layer A ↔ B coupling (`tests/coupling_test.js`) | PASS (10/10) | 2026-09-27 |
+| Simulation runner / worker loop (`tests/engine_test.js`) | PASS (5/5) | 2026-09-28 |
 
 ## Notes
 
@@ -37,3 +38,4 @@ Latest results for the validation suite in SCIENCE.md §8. Update this file when
 - **Open item for Phase 6 (coupling):** in plan view, an inlet of width w carries u_n·w per unit depth, which corresponds to Q_j·(H_room / h_opening) in 3D. Layer B's ACH (used for age of air and the mixing floor) is therefore ~H_room/h_opening (≈ 2× for a typical window) higher than Layer A's authoritative ACH. To decide when coupling the two layers.
 - **2026-09-27, Phase 6, coupling:** the slice air-budget problem (open item above) was resolved with option A (approved by Marty, SCIENCE.md §6.7). True inflow speeds are kept, the zone-mean temperature follows Layer A's well-mixed heat balance, and the age clock runs at the slice factor r_z (≈ 4 for a half-open 0.9 × 1.2 m window in a 2.44 m room). `tests/coupling_test.js` checks: wind direction flips inlets/outlets (the Phase 6 done-criterion), orientation, r_z, zone heat balance, age rate, single-window exchange, unbalanced window fans and fan mapping. Opening flows under 1e-6 m³/s count as zero (floating-point floor ~1e-8).
 - **2026-09-27, performance (to address in Phase 7):** in Node, a 16 × 14 ft bedroom runs at ~4× real time, a 30 × 25 ft apartment ~0.9×, a 48 × 38 ft house ~0.3×. Profile (apartment): pressure solve ~48%, advection ~27%, scalar diffusion ~13%.
+- **2026-09-28, Phase 7, speed:** numerical tolerances loosened (PCG_TOL_FRACTION 0.1 → 0.5, DIFFUSION_REL_TOL 1e-8 → 1e-6; reasons in constants.js). All validation tests re-run and pass; the V6 max|∇·u| rose from 1.0e-5 to 5.0e-5 (criterion 1e-4). Temperature and age now share one back-trace per step (identical results). A multigrid preconditioner was tried and dropped (+8% on a house-sized grid; see BACKLOG.md). The solver now runs in a Web Worker (engine/), which gives it a full core instead of ~55% of each frame. Benchmarks (Node, full core): apartment 30 × 25 ft ~1.5× real time, house 48 × 38 ft ~0.5×.

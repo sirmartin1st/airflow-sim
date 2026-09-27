@@ -2,7 +2,7 @@
 
 Draw a floor plan (walls, doors, windows, fans), set the outdoor conditions, and watch an animated simulation of how air moves through the space. The goal is to help you work out how to arrange windows, doors and fans to get the airflow you want.
 
-**Status:** Phase 6 (controls and coupling). Draw a plan, set the wind and temperatures, press Play. Particle trails and full metrics arrive in Phases 7–8.
+**Status:** Phase 7 (visualization). Draw a plan, set the wind and temperatures, press Play, and watch particle trails coloured by temperature. Full metrics and presets arrive in Phase 8.
 
 **Live site:** _coming once GitHub Pages is enabled_ (`https://sirmartin1st.github.io/airflow-sim/`)
 
