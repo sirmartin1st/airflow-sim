@@ -21,7 +21,9 @@ Latest results for the validation suite in SCIENCE.md §8. Update this file when
 | Unit conversions (`tests/units_test.js`) | PASS (13/13) | 2026-09-24 |
 | Constants sanity (`tests/constants_test.js`) | PASS (6/6) | 2026-09-24 |
 | Layer A building blocks (`tests/envelope_test.js`) | PASS (21/21) | 2026-09-24 |
-| Layer B building blocks (`tests/fluid_test.js`) | PASS (10/10) | 2026-09-25 |
+| Layer B building blocks (`tests/fluid_test.js`) | PASS (10/10) | 2026-09-27 |
+| Layout model and grid (`tests/layout_test.js`) | PASS (17/17) | 2026-09-27 |
+| Layer A ↔ B coupling (`tests/coupling_test.js`) | PASS (10/10) | 2026-09-27 |
 
 ## Notes
 
@@ -33,3 +35,5 @@ Latest results for the validation suite in SCIENCE.md §8. Update this file when
 - **2026-09-25, Phase 4, V8 / mixing floor:** without it, V8 failed (age 4.5·τ_n and rising): 2D recirculation eddies stayed sealed because Smagorinsky gives only ~1.7e-4 m²/s. A scalar mixing floor from Cheng et al. (2011), K_min = (0.52·ACH + 0.31 h⁻¹)·V^(2/3)/3600, brings it to 0.76·τ_n. **Caveat:** V8's room runs at ~100 ACH on the solver's basis, far beyond Cheng's measured 0.2–5.4 ACH, so the relation is extrapolated. At 5 ACH mixing, V8 would still fail (≈ 2.7·τ_n). Approved by Marty; SCIENCE.md §6.5 updated.
 - **2026-09-25, Phase 4, V5 calibration:** V5 is a calibration, not independent validation. The comparison range was changed from 1–5 m to K·√A₀ (≈ 2.9 m)–5 m with Marty's OK, because the main-zone formula predicts V_x > V_0 inside ~2.9 m. c_f sweep (worst error over the range): 0.004–0.12 → 40–76% (the 2D jet wanders, so its time-averaged centreline speed is low); 0.14 → 15% on a 60–240 s average but 27% on 60–420 s (regime boundary, rejected as not robust); 0.16 → 23%; **0.2 → 22% on both averaging windows (chosen)**; 0.25 → 27%; 0.3 → 32%; 0.4 → 40%. The model's decay is shallower than 1/x (−22% at 2.9 m, +12% at 5 m). c_f = 0.2 is ~50× a physical wall-friction value: it stands in for the 3D spreading a plan-view jet lacks. V5 takes ~3.5 minutes; the full suite now takes ~7.5 minutes.
 - **Open item for Phase 6 (coupling):** in plan view, an inlet of width w carries u_n·w per unit depth, which corresponds to Q_j·(H_room / h_opening) in 3D. Layer B's ACH (used for age of air and the mixing floor) is therefore ~H_room/h_opening (≈ 2× for a typical window) higher than Layer A's authoritative ACH. To decide when coupling the two layers.
+- **2026-09-27, Phase 6, coupling:** the slice air-budget problem (open item above) was resolved with option A (approved by Marty, SCIENCE.md §6.7). True inflow speeds are kept, the zone-mean temperature follows Layer A's well-mixed heat balance, and the age clock runs at the slice factor r_z (≈ 4 for a half-open 0.9 × 1.2 m window in a 2.44 m room). `tests/coupling_test.js` checks: wind direction flips inlets/outlets (the Phase 6 done-criterion), orientation, r_z, zone heat balance, age rate, single-window exchange, unbalanced window fans and fan mapping. Opening flows under 1e-6 m³/s count as zero (floating-point floor ~1e-8).
+- **2026-09-27, performance (to address in Phase 7):** in Node, a 16 × 14 ft bedroom runs at ~4× real time, a 30 × 25 ft apartment ~0.9×, a 48 × 38 ft house ~0.3×. Profile (apartment): pressure solve ~48%, advection ~27%, scalar diffusion ~13%.

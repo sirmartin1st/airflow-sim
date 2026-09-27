@@ -64,6 +64,14 @@ check('parse(serialize(layout)) round-trips', () => {
   const back = parseLayout(JSON.parse(serializeLayout(l)));
   if (JSON.stringify(back) !== JSON.stringify(l)) throw new Error('round trip changed the layout');
 });
+check('conditions round-trip and are validated', () => {
+  const l = { ...room(), conditions: { orientation: 90, windSpeed: 4, windFrom: 180, terrain: 'urban', Tout: 290, TinStart: 300, ceilingHeight: 2.44 } };
+  if (JSON.stringify(parseLayout(JSON.parse(serializeLayout(l)))) !== JSON.stringify(l)) throw new Error('round trip');
+  let msg = null;
+  try { parseLayout({ ...JSON.parse(serializeLayout(l)), conditions: { ...l.conditions, terrain: 'moon' } }); } catch (e) { msg = e.message; }
+  if (!msg) throw new Error('bad terrain accepted');
+});
+
 check('parseLayout rejects bad files with a readable message', () => {
   const good = JSON.parse(serializeLayout(room()));
   const bad = [

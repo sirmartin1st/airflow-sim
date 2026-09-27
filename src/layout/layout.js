@@ -13,10 +13,12 @@
 //                width, zBottom, zTop,                      m (SCIENCE.md §4.3)
 //                open: bool, openFraction: 0–1,
 //                fan: null | { preset, direction: 'in'|'out', speed } }],   window fan (§5.6)
-//   fans:     [{ id, preset, x, y, angle, speed }] }        angle: degrees, 0 = +x, clockwise on screen
+//   fans:     [{ id, preset, x, y, angle, speed }],         angle: degrees, 0 = +x, clockwise on screen
 //                                                           speed: 'off'|'low'|'medium'|'high'
+//   conditions?: { orientation, windSpeed, windFrom, terrain, Tout, TinStart, ceilingHeight } }
+//                                                           optional, SI (see physics/coupling.js)
 
-import { DOOR_DEFAULTS, WINDOW_DEFAULTS, SLIDING_WINDOW_OPEN_FRACTION, FAN_PRESETS } from '../constants.js';
+import { DOOR_DEFAULTS, WINDOW_DEFAULTS, SLIDING_WINDOW_OPEN_FRACTION, FAN_PRESETS, TERRAIN } from '../constants.js';
 
 export const LAYOUT_VERSION = 1;
 export const FAN_SPEEDS = Object.freeze(['off', 'low', 'medium', 'high']);
@@ -242,5 +244,16 @@ export function parseLayout(obj) {
       x: num(f.x, `${what} x`), y: num(f.y, `${what} y`), angle: num(f.angle, `${what} angle`), speed: f.speed,
     };
   });
+  if (obj.conditions !== undefined) {
+    const c = obj.conditions;
+    if (!c || typeof c !== 'object') fail('"conditions" must be an object.');
+    if (!TERRAIN[c.terrain]) fail('conditions terrain is not recognised.');
+    if (num(c.windSpeed, 'wind speed') < 0) fail('wind speed must not be negative.');
+    layout.conditions = {
+      orientation: num(c.orientation, 'orientation'), windSpeed: c.windSpeed, windFrom: num(c.windFrom, 'wind direction'),
+      terrain: c.terrain, Tout: pos(c.Tout, 'outside temperature'), TinStart: pos(c.TinStart, 'inside temperature'),
+      ceilingHeight: pos(c.ceilingHeight, 'ceiling height'),
+    };
+  }
   return layout;
 }

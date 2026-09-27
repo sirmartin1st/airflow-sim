@@ -22,6 +22,12 @@
   --button: #ffffff;
   --button-active: #1d2330;
   --button-active-text: #ffffff;
+  --inlet: #1f6fd1;
+  --outlet: #d4541c;
+  --exchange: #7a5bc4;
+  --arrow: #56607a;
+  --wind: #1a9bb0;
+  --primary: #1f6fd1;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -49,6 +55,12 @@
     --button: #232830;
     --button-active: #e6e8eb;
     --button-active-text: #14171c;
+    --inlet: #5aa6ee;
+    --outlet: #ff8a50;
+    --exchange: #b39ae8;
+    --arrow: #a9b2c3;
+    --wind: #4cc9dc;
+    --primary: #3d8fe6;
   }
 }
 
@@ -58,6 +70,7 @@
   --closed: #6b7480; --fan: #3fcf9f; --fan-off: #6b7480; --accent: #ff8a50; --warn: #f0a92e;
   --error: #ff6b6b; --zone-a: #1f3550; --zone-b: #1f3d2a; --zone-c: #45361f; --zone-d: #33294a;
   --button: #232830; --button-active: #e6e8eb; --button-active-text: #14171c;
+  --inlet: #5aa6ee; --outlet: #ff8a50; --exchange: #b39ae8; --arrow: #a9b2c3; --wind: #4cc9dc; --primary: #3d8fe6;
 }
 
 * { box-sizing: border-box; }
@@ -94,7 +107,7 @@ h3 { font-size: 0.9rem; margin: 1rem 0 0.4rem; }
 }
 .toolbar { grid-area: toolbar; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
 .stage { grid-area: stage; min-width: 0; }
-.props { grid-area: props; }
+
 
 @media (max-width: 760px) {
   .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "toolbar" "stage" "props"; padding: 0.5rem 16px 1rem; }
@@ -116,6 +129,12 @@ button:hover:not(:disabled) { border-color: var(--muted); }
 button:disabled { opacity: 0.45; cursor: default; }
 button[aria-pressed="true"] { background: var(--button-active); color: var(--button-active-text); border-color: var(--button-active); }
 button.danger { color: var(--error); margin-top: 1rem; }
+button.primary { background: var(--primary); border-color: var(--primary); color: #fff; min-width: 5rem; }
+.props .play select { width: auto; }
+.props .clock { margin: 0.4rem 0 0; }
+.results { margin: 0.5rem 0 0; font-size: 0.85rem; }
+.results p { margin: 0.25rem 0; }
+.results .big { font-size: 1rem; font-weight: 600; }
 
 #plan {
   display: block;
@@ -133,6 +152,7 @@ button.danger { color: var(--error); margin-top: 1rem; }
 .status-bar.error { color: var(--error); }
 .warnings { margin: 0.25rem 0 0; padding-left: 1.2rem; font-size: 0.85rem; color: var(--warn); }
 
+.side { grid-area: props; display: flex; flex-direction: column; gap: 0.75rem; min-width: 0; }
 .props {
   background: var(--panel);
   border: 1px solid var(--border);

@@ -110,6 +110,13 @@ export const ZONE_P_BRACKET = 2000;
  */
 export const ZONE_P_MAX_ITER = 200;
 
+/**
+ * Opening flows smaller than this are treated as zero when setting Layer B's inlets/outlets, m³/s
+ * (≈ 0.002 CFM). Numerical choice: the floating-point floor of the orifice solve is ~1e-8 m³/s
+ * (measured 2026-09-27 for a single open window). SCIENCE.md §6.7.
+ */
+export const FLOW_ZERO_TOL = 1e-6;
+
 /** How often Layer A is re-solved, s of sim time. SCIENCE.md §5.8. */
 export const ENVELOPE_UPDATE_INTERVAL = 0.5;
 

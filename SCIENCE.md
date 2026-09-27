@@ -327,6 +327,36 @@ Speed settings map to fractions of high: low 0.5, medium 0.75, high 1.0 (approxi
 
 Ceiling fans are out of scope for plan view v1: their main effect is vertical.
 
+### 6.7 Coupling Layer A ↔ Layer B (added 2026-09-27, option A approved by Marty)
+
+**Mapping.** The layout grid (§4) becomes the Layer B grid cell for cell. Indoor air → FLUID. Walls, outdoor cells, closed openings → SOLID. Open interior openings are already FLUID (§4.2). Each open exterior opening j takes its role from Layer A's Q_j, re-solved every 0.5 s of sim time with T_in = the zone's mean temperature:
+
+- Q_j > 0: its wall cells become INLET with inward normal velocity u_n = Q_j / A_j (§6.4) and T = T_out, A = 0.
+- Q_j < 0: OUTLET, p = 0 (§6.4).
+- Q_j = 0: SOLID. "Zero" means |Q_j| < 1e-6 m³/s (≈ 0.002 CFM), just above the floating-point floor of the orifice solve (~1e-8 m³/s for a single open window).
+- Q_exchange,j > 0 (§5.7): a two-way exchange band of the fluid cells 1–2 cells inside the opening.
+- If Layer A reports the zone **unbalanced** (§5.5, e.g. a window fan with no other opening), its openings stay SOLID, its window fans are ignored, and the UI warns.
+- Free-standing fans in indoor air become fixed-flow actuators (§6.6).
+
+**The slice air-budget problem.** The plan-view slice treats each opening as spanning the full ceiling height. With the physically correct inflow speed u_n = Q_j / A_j, an inlet of n_j cells carries u_n·n_j·Δ per unit depth, i.e. u_n·n_j·Δ·H_room in 3D terms. Define the zone's **slice factor**:
+
+```
+r_z = Σ_inlets (u_n · n_j · Δ · H_room) / Q_in       (r_z = 1 when Q_in = 0)
+```
+
+For a 0.9 × 1.2 m window half open in a 2.44 m room, r ≈ 2.44 / (1.2 · 0.5) ≈ 4. Where the air goes and how fast it moves are unaffected. But Layer B's own air budget runs r_z times too fast: the room heats or cools, and the air ages, r_z times too quickly. Two corrections restore the correct budget while keeping true speeds:
+
+1. **Zone-mean temperature follows Layer A's heat balance** (well-mixed zone, adiabatic walls, v1):
+   ```
+   V · dT̄/dt = (Q_in + Σ_j Q_exchange,j) · (T_out − T̄)
+   ```
+   This is integrated exactly each step (T̄ ← T_out + (T̄ − T_out)·e^(−Δt·(Q_in + ΣQ_ex)/V)). Layer B's temperature field is then shifted uniformly per zone so its mean equals T̄. For a closed zone this reduces to exact conservation (the §6.2 correction). Layer B decides only where it's warmer or cooler.
+2. **The age clock runs at rate r_z**: the age source is +r_z·Δt instead of +Δt (§6.2 step 6). Room-average age then matches τ_n = V/Q_in from Layer A. Local age values keep Layer B's pattern.
+
+The scalar mixing floor (§6.5) keeps using Layer B's own inflow, consistent with the compressed time scale of Layer B's transport.
+
+Limitation: the corrections fix zone totals, not local values. Temperature and age patterns near inlets are approximate.
+
 ## 7. Layer C — Visualization and metrics
 
 ### 7.1 Wispy lines (particle trails)

@@ -38,6 +38,7 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
     view: { scale: 1, ox: 0, oy: 0 },
     colors: {},
     tint: document.createElement('canvas'),
+    overlay: null,        // (ctx, view, colors, width) → draws the simulation on top of the plan
   };
 
   // ---------------------------------------------------------------------------
@@ -249,7 +250,8 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
 
   function readColors() {
     const cs = getComputedStyle(document.documentElement);
-    for (const name of ['panel', 'grid', 'grid-major', 'wall', 'window', 'door', 'closed', 'fan', 'fan-off', 'accent', 'warn', 'error', 'zone-a', 'zone-b', 'zone-c', 'zone-d']) {
+    for (const name of ['panel', 'grid', 'grid-major', 'wall', 'window', 'door', 'closed', 'fan', 'fan-off', 'accent', 'warn', 'error',
+      'zone-a', 'zone-b', 'zone-c', 'zone-d', 'inlet', 'outlet', 'exchange', 'arrow', 'wind', 'text', 'muted']) {
       st.colors[name] = cs.getPropertyValue(`--${name}`).trim() || '#888';
     }
   }
@@ -316,6 +318,9 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
 
     // Fans
     for (const f of st.layout.fans) drawFan(f);
+
+    // Simulation (arrows, flows, compass)
+    if (st.overlay) st.overlay(ctx, { toScreen, scale }, { ...c, halo: c.panel }, cw);
 
     // Drag previews
     const d = st.drag;
@@ -508,8 +513,11 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
   canvas.dataset.tool = st.tool;
   resize();
 
+  function setOverlay(fn) { st.overlay = fn; draw(); }
+
   return {
-    setTool, undo, redo, updateSelected, rotateSelected, deleteSelected, replaceLayout,
+    setTool, undo, redo, updateSelected, rotateSelected, deleteSelected, replaceLayout, setOverlay,
+    redraw: draw,
     getLayout: () => st.layout,
     getGrid: () => st.grid,
     getSelection: () => st.selection,

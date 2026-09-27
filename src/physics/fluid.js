@@ -105,6 +105,10 @@ export function createFluid(opts) {
     // Two-way exchange bands (§6.4): [{ cells: Int32Array, rate: 1/s, T: K }]
     exchange: [],
 
+    // Per-zone coupling inputs (§6.7), indexed by zone (componentOf). Sized in setCells.
+    zoneTargetT: new Float64Array(0),     // NaN = conserve heat (§6.2); otherwise hold zone mean T here
+    ageRate: new Float64Array(0),         // age source rate, 1 = plain clock; r_z when coupled
+
     stats: { pcgIterations: 0, pcgResidualDiv: 0, pcgConverged: true, diffusionSweeps: 0 },
 
     // --- scratch (private) ---
@@ -215,6 +219,13 @@ function labelComponents(s) {
   s._compCount = new Float64Array(n);
   s._heat = new Float64Array(n);
   s._heatS = new Float64Array(n);
+  s.zoneTargetT = new Float64Array(n).fill(NaN);
+  s.ageRate = new Float64Array(n).fill(1);
+}
+
+/** Zone (connected fluid region) index of FLUID cell c, or −1. Valid until the next setCells. */
+export function componentOf(s, c) {
+  return s._comp[c];
 }
 
 // Pressure matrix for the scaled pressure p̂ = p·Δt/ρ (SCIENCE.md §6.2 step 5):
@@ -744,9 +755,9 @@ export function setExchangeBands(s, bands) {
 }
 
 function applyScalarSources(s, dt) {
-  const { kind, T, A } = s;
-  // SCIENCE.md §6.2 step 6: age source, +Δt in every fluid cell
-  for (let c = 0; c < A.length; c++) if (kind[c] === FLUID) A[c] += dt;
+  const { kind, T, A, ageRate, _comp: comp } = s;
+  // SCIENCE.md §6.2 step 6: age source, +Δt in every fluid cell (+r_z·Δt when coupled, §6.7)
+  for (let c = 0; c < A.length; c++) if (kind[c] === FLUID) A[c] += ageRate[comp[c]] * dt;
   // SCIENCE.md §6.4 / §5.7 two-way exchange (documented heuristic): relax toward outdoor air
   for (const band of s.exchange) {
     const f = 1 - Math.exp(-band.rate * dt);
@@ -755,6 +766,21 @@ function applyScalarSources(s, dt) {
       T[c] += (band.T - T[c]) * f;
       A[c] -= A[c] * f;
     }
+  }
+}
+
+// SCIENCE.md §6.7: zones with a target mean temperature are shifted uniformly to it.
+function anchorZoneTemperatures(s) {
+  const { kind, T, zoneTargetT: target, _comp: comp, _compSum: sum, _compCount: count } = s;
+  let any = false;
+  for (let z = 0; z < target.length; z++) if (!Number.isNaN(target[z])) { any = true; break; }
+  if (!any) return;
+  sum.fill(0); count.fill(0);
+  for (let c = 0; c < T.length; c++) if (kind[c] === FLUID) { sum[comp[c]] += T[c]; count[comp[c]] += 1; }
+  for (let c = 0; c < T.length; c++) {
+    if (kind[c] !== FLUID) continue;
+    const z = comp[c];
+    if (!Number.isNaN(target[z])) T[c] += target[z] - sum[z] / count[z];
   }
 }
 
@@ -790,6 +816,7 @@ export function step(s, dt) {
   const d4 = diffuseScalar(s, s.A, null, dt);
   correctHeat(s, dt);                         //    heat-conservation correction (§6.2)
   applyScalarSources(s, dt);
+  anchorZoneTemperatures(s);                  //    zone-mean T from Layer A's heat balance (§6.7)
   s.stats.diffusionSweeps = Math.max(d1, d2, d3, d4);
   s.time += dt;
 }
