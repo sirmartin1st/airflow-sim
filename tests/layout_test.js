@@ -1,7 +1,7 @@
 // Layout model and grid builder tests (src/layout). SCIENCE.md §4.
 import { check, near, finish } from './lib.js';
 import {
-  createLayout, addWall, addRoom, removeWall, findWall, placeOpening, moveOpening, addFan,
+  createLayout, addWall, addRoom, removeWall, findWall, placeOpening, moveOpening, addFan, addProbe,
   updateItem, removeItem, parseLayout, serializeLayout, isOnWall,
 } from '../src/layout/layout.js';
 import { buildGrid, LCELL } from '../src/layout/grid.js';
@@ -64,8 +64,19 @@ check('parse(serialize(layout)) round-trips', () => {
   const back = parseLayout(JSON.parse(serializeLayout(l)));
   if (JSON.stringify(back) !== JSON.stringify(l)) throw new Error('round trip changed the layout');
 });
+check('person markers: add, move, remove, round-trip; old files without probes still load', () => {
+  let r = addProbe(room(), 3, 2.5);
+  let l = updateItem(r.layout, r.id, { x: 3.5 });
+  if (l.probes[0].x !== 3.5) throw new Error('update');
+  const back = parseLayout(JSON.parse(serializeLayout(l)));
+  if (JSON.stringify(back) !== JSON.stringify(l)) throw new Error('round trip');
+  if (removeItem(l, r.id).probes.length !== 0) throw new Error('remove');
+  const old = JSON.parse(serializeLayout(room())); delete old.probes;
+  if (parseLayout(old).probes.length !== 0) throw new Error('old file');
+});
+
 check('conditions round-trip and are validated', () => {
-  const l = { ...room(), conditions: { orientation: 90, windSpeed: 4, windFrom: 180, terrain: 'urban', Tout: 290, TinStart: 300, ceilingHeight: 2.44 } };
+  const l = { ...room(), conditions: { orientation: 90, windSpeed: 4, windFrom: 180, terrain: 'urban', Tout: 290, TinStart: 300, ceilingHeight: 2.44, target: 297, goal: 'cool' } };
   if (JSON.stringify(parseLayout(JSON.parse(serializeLayout(l)))) !== JSON.stringify(l)) throw new Error('round trip');
   let msg = null;
   try { parseLayout({ ...JSON.parse(serializeLayout(l)), conditions: { ...l.conditions, terrain: 'moon' } }); } catch (e) { msg = e.message; }

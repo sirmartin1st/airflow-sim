@@ -1,0 +1,170 @@
+{
+  "version": 1,
+  "width": 15.24,
+  "height": 12.192,
+  "walls": [
+    {
+      "x0": 0.9144000000000001,
+      "y0": 0.9144000000000001,
+      "x1": 11.8872,
+      "y1": 0.9144000000000001
+    },
+    {
+      "x0": 0.9144000000000001,
+      "y0": 9.4488,
+      "x1": 11.8872,
+      "y1": 9.4488
+    },
+    {
+      "x0": 0.9144000000000001,
+      "y0": 0.9144000000000001,
+      "x1": 0.9144000000000001,
+      "y1": 9.4488
+    },
+    {
+      "x0": 11.8872,
+      "y0": 0.9144000000000001,
+      "x1": 11.8872,
+      "y1": 9.4488
+    },
+    {
+      "x0": 0.9144000000000001,
+      "y0": 5.1816,
+      "x1": 7.62,
+      "y1": 5.1816
+    },
+    {
+      "x0": 4.2672,
+      "y0": 0.9144000000000001,
+      "x1": 4.2672,
+      "y1": 5.1816
+    },
+    {
+      "x0": 7.62,
+      "y0": 0.9144000000000001,
+      "x1": 7.62,
+      "y1": 9.4488
+    }
+  ],
+  "openings": [
+    {
+      "id": "door1",
+      "type": "door",
+      "x": 2.7432000000000003,
+      "y": 5.1816,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0,
+      "zTop": 2.03,
+      "open": true,
+      "openFraction": 1,
+      "fan": null
+    },
+    {
+      "id": "door2",
+      "type": "door",
+      "x": 6.096,
+      "y": 5.1816,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0,
+      "zTop": 2.03,
+      "open": true,
+      "openFraction": 1,
+      "fan": null
+    },
+    {
+      "id": "door3",
+      "type": "door",
+      "x": 7.62,
+      "y": 7.315200000000001,
+      "axis": "v",
+      "width": 0.9,
+      "zBottom": 0,
+      "zTop": 2.03,
+      "open": true,
+      "openFraction": 1,
+      "fan": null
+    },
+    {
+      "id": "win1",
+      "type": "window",
+      "x": 2.4384,
+      "y": 0.9144000000000001,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    },
+    {
+      "id": "win2",
+      "type": "window",
+      "x": 5.7912,
+      "y": 0.9144000000000001,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    },
+    {
+      "id": "win3",
+      "type": "window",
+      "x": 9.7536,
+      "y": 9.4488,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": {
+        "preset": "twinWindow",
+        "direction": "out",
+        "speed": "high"
+      }
+    },
+    {
+      "id": "win4",
+      "type": "window",
+      "x": 3.6576000000000004,
+      "y": 9.4488,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    }
+  ],
+  "fans": [],
+  "probes": [
+    {
+      "id": "person1",
+      "x": 2.4384,
+      "y": 2.7432000000000003
+    },
+    {
+      "id": "person2",
+      "x": 4.2672,
+      "y": 7.315200000000001
+    }
+  ],
+  "conditions": {
+    "orientation": 0,
+    "windSpeed": 0.89408,
+    "windFrom": 225,
+    "terrain": "suburban",
+    "Tout": 292.0388888888889,
+    "TinStart": 300.92777777777775,
+    "ceilingHeight": 2.4384,
+    "target": 295.3722222222222,
+    "goal": "cool"
+  }
+}

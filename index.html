@@ -10,7 +10,27 @@
   <header>
     <h1>Air Flow Simulator</h1>
     <p class="status" id="save-status"></p>
+    <button type="button" id="about-open" class="about-button">About &amp; limitations</button>
   </header>
+
+  <dialog id="about" aria-labelledby="about-title">
+    <h2 id="about-title">About this simulator</h2>
+    <p>Draw a floor plan, set the weather, and see how air moves through your space, so you can try window, door and fan arrangements before moving furniture. It combines two layers: standard engineering airflow-network equations (the ASHRAE / NIST CONTAM approach) decide <b>how much</b> air comes in and out of each window and door, and a 2D fluid simulation decides <b>where it goes</b> inside.</p>
+    <p><b>It is an approximation, not engineering CFD.</b> Use it to compare arrangements and spot problem areas; don't rely on individual numbers.</p>
+    <h3>Known limitations</h3>
+    <ul>
+      <li><b>Top-down slice at seated height (3.6 ft).</b> Rising warm air, layering near the ceiling and other up-and-down motion aren't simulated. Ceiling fans aren't included yet.</li>
+      <li><b>Turbulence is calibrated, not resolved.</b> Patterns and rough speeds are meaningful; local speeds can be off by 20–50%. In a flat slice, the air a fan pulls in behind it looks stronger than in a real room.</li>
+      <li><b>Outside air pressure uses wall-averaged coefficients.</b> Nearby buildings, trees and fences aren't modelled beyond the terrain setting.</li>
+      <li><b>Walls don't heat or cool the air</b>, and there's no sun, people or appliance heat yet.</li>
+      <li><b>Fan ratings vary a lot between products.</b> The built-in airflows are typical values; results are only as good as the fan inputs.</li>
+      <li><b>Wind is steady.</b> Real wind gusts and shifts direction.</li>
+      <li><b>Every window and door is treated as reaching seated height.</b> Openings that don't are marked with an orange “!”, and their effect on people is overstated.</li>
+      <li><b>Room totals are corrected, local values are approximate.</b> The room's average temperature and fresh-air age follow the airflow-network numbers; how they're spread across the room comes from the 2D simulation, with a mixing level taken from measurements in real homes.</li>
+    </ul>
+    <p class="muted">The physics, sources and validation results are documented in <a href="https://github.com/sirmartin1st/airflow-sim/blob/main/SCIENCE.md" target="_blank" rel="noopener">SCIENCE.md</a> and <a href="https://github.com/sirmartin1st/airflow-sim/blob/main/VALIDATION.md" target="_blank" rel="noopener">VALIDATION.md</a>.</p>
+    <form method="dialog"><button class="primary">Close</button></form>
+  </dialog>
 
   <main class="app">
     <nav class="toolbar" aria-label="Tools">
@@ -21,11 +41,17 @@
         <button type="button" data-tool="window" title="Click a wall to add a window (N)">Window</button>
         <button type="button" data-tool="door" title="Click a wall to add a door (D)">Door</button>
         <button type="button" data-tool="fan" title="Click inside a room to add a fan (F)">Fan</button>
+        <button type="button" data-tool="person" title="Click where someone sits or sleeps to measure the breeze there (P)">Person</button>
         <button type="button" data-tool="erase" title="Click something to delete it (E)">Erase</button>
       </div>
       <div class="group" role="group" aria-label="History">
         <button type="button" id="undo" title="Undo (Cmd/Ctrl+Z)">Undo</button>
         <button type="button" id="redo" title="Redo (Cmd/Ctrl+Shift+Z)">Redo</button>
+      </div>
+      <div class="group" role="group" aria-label="Examples">
+        <select id="examples" aria-label="Load an example layout">
+          <option value="">Examples…</option>
+        </select>
       </div>
       <div class="group" role="group" aria-label="File">
         <button type="button" id="new" title="Start an empty plan">New</button>

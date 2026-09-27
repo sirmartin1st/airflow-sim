@@ -22,6 +22,7 @@ export function createPropertiesPanel(root, editor) {
     const item = findItem(layout, sel.id);
     if (!item) return renderHelp();
     if (sel.type === 'fan') return renderFan(item);
+    if (sel.type === 'probe') return renderProbe(item);
     const info = grid.ok ? grid.openings.find((o) => o.id === item.id) : null;
     return renderOpening(item, info);
   }
@@ -33,8 +34,9 @@ export function createPropertiesPanel(root, editor) {
         h('li', {}, 'Pick ', h('b', {}, 'Room'), ' and drag to draw walls around a room.'),
         h('li', {}, 'Pick ', h('b', {}, 'Window'), ' or ', h('b', {}, 'Door'), ' and click on a wall.'),
         h('li', {}, 'Pick ', h('b', {}, 'Fan'), ' and click inside a room.'),
+        h('li', {}, 'Pick ', h('b', {}, 'Person'), ' and click where someone sits or sleeps to measure the breeze they feel.'),
         h('li', {}, 'Pick ', h('b', {}, 'Select'), ' and click anything to change it here, or drag windows, doors and fans to move them.')),
-      h('p', { class: 'muted' }, 'Keys: S select · B room · W wall · N window · D door · F fan · E erase · R rotate fan · Delete · Cmd/Ctrl+Z undo'));
+      h('p', { class: 'muted' }, 'Keys: S select · B room · W wall · N window · D door · F fan · P person · E erase · R rotate fan · Delete · Cmd/Ctrl+Z undo'));
   }
 
   function renderWall(w) {
@@ -125,6 +127,14 @@ export function createPropertiesPanel(root, editor) {
       h('label', {}, 'Direction (degrees, 0 = pointing right)', h('span', { class: 'row' }, angle, rotL, rotR)),
       ratingNote(f.preset),
       deleteButton('Delete fan'));
+  }
+
+  function renderProbe(pr) {
+    root.append(
+      h('h2', {}, 'Person marker'),
+      h('p', {}, `Measures the air speed and temperature someone here would feel (averaged over the last minute of simulated time). Shown on the plan and in the results.`),
+      h('p', { class: 'muted' }, 'Drag it with Select to try another spot.'),
+      deleteButton('Delete person marker'));
   }
 
   // --- small builders ---

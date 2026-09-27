@@ -2,7 +2,7 @@
 
 Draw a floor plan (walls, doors, windows, fans), set the outdoor conditions, and watch an animated simulation of how air moves through the space. The goal is to help you work out how to arrange windows, doors and fans to get the airflow you want.
 
-**Status:** Phase 7 (visualization). Draw a plan, set the wind and temperatures, press Play, and watch particle trails coloured by temperature. Full metrics and presets arrive in Phase 8.
+**Status:** Phase 8 (metrics and presets). Draw a plan or load an example, press Play, and compare arrangements with a headline number.
 
 **Live site:** _coming once GitHub Pages is enabled_ (`https://sirmartin1st.github.io/airflow-sim/`)
 
@@ -13,6 +13,9 @@ Draw a floor plan (walls, doors, windows, fans), set the outdoor conditions, and
 - **Select** (S): click anything to edit it in the side panel; drag windows, doors and fans to move them. **R** rotates a selected fan.
 - **Erase** (E): click something to delete it. **Cmd/Ctrl+Z** undoes.
 - Your layout autosaves in the browser. **Save file** / **Open file** keep layouts as `.json` files.
+- **Person** (P): click where someone sits or sleeps; it shows the breeze (ft/min) and temperature they'd feel.
+- **Examples** menu: four ready-made layouts to start from.
+- **What do you want?** picks the headline number: *Feel a breeze* (average air speed at your person markers), *Cool the room down* (time to reach your target temperature), or *Fresh air everywhere* (stagnant floor area). **Save these results as A**, change something, let it run a minute, and the panel says whether the new arrangement is better or worse.
 - **Simulation panel:** set which way the top of the plan faces, the wind (speed and the direction it comes *from*), outside and starting inside temperatures, surroundings and ceiling height, then press **Play**. Windows and doors show whether air flows **in** or **out** and how much (CFM); arrows show where it goes inside.
 
 ## How it works

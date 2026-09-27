@@ -235,6 +235,12 @@ export const STAGNANT_SPEED = 0.05;
  */
 export const STAGNANT_AVERAGING_TIME = 60;
 
+/** Averaging time for comfort-probe readings, s of sim time. SCIENCE.md §7.3 (display/metric choice, 2026-09-28). */
+export const PROBE_AVERAGING_TIME = 60;
+
+/** "Reached the target" band for time-to-target: ±1 °F = 5/9 K. SCIENCE.md §7.3. */
+export const TARGET_BAND_K = 5 / 9;
+
 /** ASHRAE 55 "still air" threshold, m/s (≈40 fpm). SCIENCE.md §7.3. */
 export const STILL_AIR_SPEED = 0.2;
 

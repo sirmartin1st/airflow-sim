@@ -2,6 +2,7 @@
 // Shows imperial units and converts to SI at this edge (CLAUDE.md rule 3).
 
 import { TERRAIN, DEFAULT_TERRAIN, DEFAULT_CEILING_HEIGHT } from '../constants.js';
+import { GOAL_LABELS } from './metrics.js';
 import { mphToMps, mpsToMph, fToK, kToF, ftToM, mToFt } from '../units.js';
 
 /** Starting conditions for a new plan, SI (see physics/coupling.js). */
@@ -13,6 +14,8 @@ export const DEFAULT_CONDITIONS = Object.freeze({
   Tout: fToK(70),
   TinStart: fToK(80),
   ceilingHeight: DEFAULT_CEILING_HEIGHT,
+  target: fToK(75),
+  goal: 'breeze',
 });
 
 export const SIM_SPEEDS = Object.freeze([1, 5, 20]);
@@ -80,9 +83,17 @@ export function createControls(root, { conditions, onConditions, onPlay, onReset
   overlaySel.value = viewState.overlay;
   overlaySel.addEventListener('change', () => setView({ overlay: overlaySel.value }));
 
+  // --- goal (which number to headline) and target temperature, SCIENCE.md §7.3 ---
+  const goalSel = h('select', {}, ...Object.entries(GOAL_LABELS).map(([k, label]) => h('option', { value: k }, label)));
+  goalSel.value = cond.goal ?? 'breeze';
+  goalSel.addEventListener('change', () => emit({ goal: goalSel.value }));
+  const target = numberField('Target temperature (°F)', round1(kToF(cond.target)), 40, 100, 1, (v) => emit({ target: fToK(v) }));
+
   const results = h('div', { class: 'results' });
   root.replaceChildren(
     h('h2', {}, 'Simulation'),
+    h('label', {}, 'What do you want?', goalSel),
+    target,
     h('div', { class: 'row play' }, playBtn, resetBtn, speedSel),
     clock,
     results,

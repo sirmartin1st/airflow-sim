@@ -1,7 +1,7 @@
 // Entry point: wires the layout editor, conditions/play controls, the simulation engine
 // (a Web Worker, see engine/) and the drawing of its snapshots, plus saving.
 
-import { createLayout } from './layout/layout.js';
+import { createLayout, parseLayout } from './layout/layout.js';
 import { createEditor, TOOLS } from './ui/editor.js';
 import { createPropertiesPanel } from './ui/properties.js';
 import { createControls, DEFAULT_CONDITIONS, DEFAULT_VIEW } from './ui/controls.js';
@@ -15,8 +15,9 @@ import {
 import {
   createParticles, resetParticles, updateParticles, drawTrails, compositeTrails, COLOR_STEPS,
 } from './render/particles.js';
-import { ACH_LABELS } from './constants.js';
-import { ftToM, m2ToFt2, kToF } from './units.js';
+import { updateProbes, trackTarget, computeMetrics, renderMetrics, headline } from './ui/metrics.js';
+import { STAGNANT_AVERAGING_TIME } from './constants.js';
+import { ftToM, m2ToFt2, kToF, mpsToFpm } from './units.js';
 
 const PLAN_WIDTH_FT = 50, PLAN_HEIGHT_FT = 40;   // drawing area
 const AUTOSAVE_DELAY_MS = 300;
@@ -29,7 +30,8 @@ const canvas = $('plan'), statusEl = $('status'), warningsEl = $('warnings'), sa
 
 const newLayout = () => ({ ...createLayout(ftToM(PLAN_WIDTH_FT), ftToM(PLAN_HEIGHT_FT)), conditions: { ...DEFAULT_CONDITIONS } });
 const restored = loadAutosave();
-const initial = restored ? { ...restored, conditions: restored.conditions ?? { ...DEFAULT_CONDITIONS } } : newLayout();
+// Older saves may lack newer condition fields (target, goal): fill them from the defaults.
+const initial = restored ? { ...restored, conditions: { ...DEFAULT_CONDITIONS, ...(restored.conditions ?? {}) } } : newLayout();
 
 let autosaveTimer = null;
 let message = null;   // one-off hint shown in the status line until the next change
@@ -50,6 +52,11 @@ const fieldStats = createFieldStats();
 let trailStepPending = false;   // set when particles moved; the underlay then fades + extends the trails
 let stagnantShare = null;
 let palette = null, paletteKey = '';
+const probeStats = new Map();   // person marker id → running averages (ui/metrics.js)
+let reached = [];               // per zone: sim time the target was first reached
+let savedA = null;              // metrics saved with "Save these results as A"
+let metrics = null;
+let changedAt = 0;              // sim time of the last change that the averages must catch up with
 
 const engine = createEngine({ onSnapshot });
 
@@ -84,6 +91,9 @@ function scheduleAutosave(layout) {
 function layoutChanged(layout, grid) {
   if (build && lastLayout && layout.walls === lastLayout.walls && JSON.stringify(layout.openings) === JSON.stringify(lastLayout.openings)) {
     engine.setFans(layout.fans);
+    if (JSON.stringify(layout.probes) !== JSON.stringify(lastLayout.probes)) probeStats.clear(); // markers moved: restart their averages
+    changedAt = sim ? sim.time : 0;
+    renderResults();
   } else {
     startSimulation(layout, grid);
   }
@@ -119,16 +129,23 @@ function onSnapshot(snap) {
   for (const o of sim.openings) { const d = dyn.get(o.id); if (d) { o.role = d.role; o.result = d.result; } }
   sim.zones = snap.zones; sim.time = snap.time; sim.warnings = snap.warnings; sim.achieved = snap.achieved;
 
+  const probes = editor.getLayout().probes ?? [];
   if (first) {
     resetParticles(particles, sim);
     updateFieldStats(fieldStats, sim, 0);
     stagnantShare = null;
+    probeStats.clear();
+    updateProbes(probeStats, sim, probes, 0);
+    reached = [];
+    changedAt = 0;
     if (view.overlay !== 'none') refreshField();
     renderResults();
   } else if (sim.time > prevTime) {
     const dt = sim.time - prevTime;
     if (view.particles) { updateParticles(particles, dt); trailStepPending = true; }
     updateFieldStats(fieldStats, sim, dt);
+    updateProbes(probeStats, sim, probes, dt);
+    trackTarget(reached, sim, conditions.target);
   }
 }
 
@@ -145,8 +162,12 @@ function mountControls() {
     view,
     onConditions: (c) => {
       const restart = c.TinStart !== conditions.TinStart;
+      if (c.target !== conditions.target) reached = [];
+      if (sim && (c.windSpeed !== conditions.windSpeed || c.windFrom !== conditions.windFrom || c.orientation !== conditions.orientation
+        || c.Tout !== conditions.Tout || c.terrain !== conditions.terrain || c.ceilingHeight !== conditions.ceilingHeight)) changedAt = sim.time;
       conditions = c;
       if (restart) startSimulation(); else engine.setConditions(c);
+      renderResults();
       scheduleAutosave(editor.getLayout());
       editor.redraw();
     },
@@ -209,7 +230,23 @@ editor.setOverlay((ctx, v, colors, width, height) => {
   if (view.overlay !== 'none' && fieldStats.mode === view.overlay) {
     drawFieldLegend(ctx, 22, ly, view.overlay, { max: fieldStats.max }, colors, stagnantShare);
   }
+  drawProbeReadings(ctx, v, colors);
 });
+
+// Live reading next to each person marker: averaged air speed and temperature.
+function drawProbeReadings(ctx, v, colors) {
+  ctx.save();
+  ctx.font = '600 11px system-ui'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  for (const p of editor.getLayout().probes ?? []) {
+    const st = probeStats.get(p.id);
+    const text = st ? `${Math.round(mpsToFpm(st.speed))} ft/min · ${kToF(st.T).toFixed(1)} °F` : 'not in a room';
+    const [x, y] = v.toScreen(p.x, p.y);
+    const tx = x + 14, ty = y - 14;
+    ctx.lineWidth = 4; ctx.strokeStyle = colors.halo; ctx.strokeText(text, tx, ty);
+    ctx.fillStyle = colors.text; ctx.fillText(text, tx, ty);
+  }
+  ctx.restore();
+}
 
 // Screen-pixel bounding box of the walls (or the whole plan if there are none).
 function buildingBox(v) {
@@ -254,18 +291,19 @@ requestAnimationFrame(frame);
 
 function renderResults() {
   const el = controls.resultsElement();
-  el.replaceChildren();
-  if (!sim) return;
-  const p = (cls, text) => Object.assign(document.createElement('p'), { className: cls, textContent: text });
-  sim.zones.forEach((z, k) => {
-    const ach = z.balanced ? z.ach : 0;
-    const label = ACH_LABELS.find((l) => ach < l.max).label;
-    const name = sim.zones.length > 1 ? `Room ${k + 1}: ` : '';
-    el.append(p('big', `${name}${ach.toFixed(1)} air changes per hour (${label})`));
-    el.append(p('muted', `Average inside ${kToF(z.Tmean).toFixed(1)} °F · outside ${kToF(conditions.Tout).toFixed(1)} °F`));
+  if (!sim) { el.replaceChildren(); metrics = null; return; }
+  // The stagnant share needs a minute of averaging before it means anything.
+  const stagnant = sim.time >= STAGNANT_AVERAGING_TIME ? stagnantFraction(fieldStats, sim) : null;
+  metrics = computeMetrics(sim, editor.getLayout().probes ?? [], probeStats, stagnant, conditions, reached, changedAt);
+  renderMetrics(el, metrics, conditions.goal, conditions, savedA ? { headline: headlineOf(savedA) } : null, {
+    onSaveA: () => { savedA = structuredClone(metrics); renderResults(); },
+    onClearA: () => { savedA = null; renderResults(); },
   });
-  for (const w of sim.warnings) el.append(p('warn', `⚠ ${w}`));
+  for (const w of sim.warnings) {
+    el.append(Object.assign(document.createElement('p'), { className: 'warn', textContent: `⚠ ${w}` }));
+  }
 }
+const headlineOf = (m) => headline(m, conditions.goal);
 
 // --- toolbar ---
 const toolButtons = [...document.querySelectorAll('[data-tool]')];
@@ -296,7 +334,8 @@ $('file-input').addEventListener('change', async (ev) => {
   if (!file) return;
   try {
     const layout = await readLayoutFile(file);
-    if (layout.conditions) { conditions = layout.conditions; mountControls(); }
+    if (layout.conditions) { conditions = { ...DEFAULT_CONDITIONS, ...layout.conditions }; mountControls(); }
+    savedA = null;
     editor.replaceLayout(layout);
     message = `Opened ${file.name}.`;
   } catch (err) {
@@ -304,6 +343,34 @@ $('file-input').addEventListener('change', async (ev) => {
   }
   renderStatus(editor.getGrid(), editor.getLayout());
 });
+
+// --- examples and About ---
+const examplesSel = $('examples');
+fetch('./presets/index.json')
+  .then((r) => r.json())
+  .then((list) => {
+    for (const p of list) examplesSel.append(Object.assign(document.createElement('option'), { value: p.file, textContent: p.label, title: p.description }));
+    examplesSel.dataset.descriptions = JSON.stringify(Object.fromEntries(list.map((p) => [p.file, p.description])));
+  })
+  .catch(() => { examplesSel.disabled = true; });
+examplesSel.addEventListener('change', async () => {
+  const file = examplesSel.value;
+  examplesSel.value = '';
+  if (!file) return;
+  if (editor.getLayout().walls.length && !confirm('Replace your plan with this example? (You can undo this.)')) return;
+  try {
+    const layout = parseLayout(await (await fetch(`./presets/${file}`)).json());
+    conditions = { ...DEFAULT_CONDITIONS, ...(layout.conditions ?? {}) };
+    savedA = null;
+    mountControls();
+    editor.replaceLayout(layout);
+    message = JSON.parse(examplesSel.dataset.descriptions || '{}')[file] ?? null;
+  } catch (err) {
+    message = `Couldn't load that example: ${err.message}`;
+  }
+  renderStatus(editor.getGrid(), editor.getLayout());
+});
+$('about-open').addEventListener('click', () => $('about').showModal());
 
 // --- status line ---
 function renderStatus(grid, layout) {

@@ -1,0 +1,87 @@
+{
+  "version": 1,
+  "width": 15.24,
+  "height": 12.192,
+  "walls": [
+    {
+      "x0": 1.2192,
+      "y0": 1.2192,
+      "x1": 4.8768,
+      "y1": 1.2192
+    },
+    {
+      "x0": 1.2192,
+      "y0": 4.8768,
+      "x1": 4.8768,
+      "y1": 4.8768
+    },
+    {
+      "x0": 1.2192,
+      "y0": 1.2192,
+      "x1": 1.2192,
+      "y1": 4.8768
+    },
+    {
+      "x0": 4.8768,
+      "y0": 1.2192,
+      "x1": 4.8768,
+      "y1": 4.8768
+    }
+  ],
+  "openings": [
+    {
+      "id": "win1",
+      "type": "window",
+      "x": 3.048,
+      "y": 1.2192,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    },
+    {
+      "id": "door1",
+      "type": "door",
+      "x": 4.8768,
+      "y": 3.9624,
+      "axis": "v",
+      "width": 0.9,
+      "zBottom": 0,
+      "zTop": 2.03,
+      "open": false,
+      "openFraction": 1,
+      "fan": null
+    }
+  ],
+  "fans": [
+    {
+      "id": "fan1",
+      "preset": "box20",
+      "x": 3.048,
+      "y": 1.6764000000000001,
+      "angle": 90,
+      "speed": "high"
+    }
+  ],
+  "probes": [
+    {
+      "id": "person1",
+      "x": 2.1336,
+      "y": 3.6576000000000004
+    }
+  ],
+  "conditions": {
+    "orientation": 0,
+    "windSpeed": 1.34112,
+    "windFrom": 0,
+    "terrain": "suburban",
+    "Tout": 293.15,
+    "TinStart": 299.81666666666666,
+    "ceilingHeight": 2.4384,
+    "target": 296.4833333333333,
+    "goal": "breeze"
+  }
+}

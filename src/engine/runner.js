@@ -7,6 +7,15 @@ import { createSimulation, setConditions, setSimFans, advance } from '../physics
 
 const MAX_DEBT_S = 0.25;   // never owe more than this much real time of simulation (slow machines)
 
+/** Per-zone numbers the page needs (SCIENCE.md §5.8, §7.3), flattened from the simulation. */
+export function snapshotZones(sim) {
+  return sim.zones.map((z) => ({
+    Tmean: z.Tmean, balanced: z.balanced, sliceFactor: z.sliceFactor,
+    ach: z.result ? z.result.ach : 0, Qin: z.result ? z.result.Qin : 0,
+    Qexchange: z.result ? z.result.QexchangeTotal : 0, volume: z.volume,
+  }));
+}
+
 export function createRunner() {
   let sim = null, buildId = 0;
   let playing = false, speed = 1;
@@ -54,10 +63,7 @@ export function createRunner() {
         buildId, ok: true, time: sim.time, achieved,
         u, v, T, A, kind,
         openings: sim.openings.map((o) => ({ id: o.id, role: o.role, result: o.result })),
-        zones: sim.zones.map((z) => ({
-          Tmean: z.Tmean, balanced: z.balanced, sliceFactor: z.sliceFactor,
-          ach: z.result ? z.result.ach : 0, Qin: z.result ? z.result.Qin : 0,
-        })),
+        zones: snapshotZones(sim),
         warnings: sim.warnings,
       };
       return { snapshot, transfer: [u.buffer, v.buffer, T.buffer, A.buffer, kind.buffer] };

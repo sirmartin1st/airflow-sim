@@ -1,0 +1,128 @@
+{
+  "version": 1,
+  "width": 15.24,
+  "height": 12.192,
+  "walls": [
+    {
+      "x0": 0.9144000000000001,
+      "y0": 1.2192,
+      "x1": 10.0584,
+      "y1": 1.2192
+    },
+    {
+      "x0": 0.9144000000000001,
+      "y0": 7.315200000000001,
+      "x1": 10.0584,
+      "y1": 7.315200000000001
+    },
+    {
+      "x0": 0.9144000000000001,
+      "y0": 1.2192,
+      "x1": 0.9144000000000001,
+      "y1": 7.315200000000001
+    },
+    {
+      "x0": 10.0584,
+      "y0": 1.2192,
+      "x1": 10.0584,
+      "y1": 7.315200000000001
+    },
+    {
+      "x0": 5.486400000000001,
+      "y0": 1.2192,
+      "x1": 5.486400000000001,
+      "y1": 7.315200000000001
+    }
+  ],
+  "openings": [
+    {
+      "id": "door1",
+      "type": "door",
+      "x": 5.486400000000001,
+      "y": 4.2672,
+      "axis": "v",
+      "width": 0.9,
+      "zBottom": 0,
+      "zTop": 2.03,
+      "open": true,
+      "openFraction": 1,
+      "fan": null
+    },
+    {
+      "id": "win1",
+      "type": "window",
+      "x": 2.7432000000000003,
+      "y": 1.2192,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    },
+    {
+      "id": "win2",
+      "type": "window",
+      "x": 7.9248,
+      "y": 1.2192,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    },
+    {
+      "id": "win3",
+      "type": "window",
+      "x": 3.048,
+      "y": 7.315200000000001,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    },
+    {
+      "id": "win4",
+      "type": "window",
+      "x": 8.2296,
+      "y": 7.315200000000001,
+      "axis": "h",
+      "width": 0.9,
+      "zBottom": 0.9,
+      "zTop": 2.1,
+      "open": true,
+      "openFraction": 0.5,
+      "fan": null
+    }
+  ],
+  "fans": [],
+  "probes": [
+    {
+      "id": "person1",
+      "x": 2.7432000000000003,
+      "y": 4.8768
+    },
+    {
+      "id": "person2",
+      "x": 8.2296,
+      "y": 4.572
+    }
+  ],
+  "conditions": {
+    "orientation": 0,
+    "windSpeed": 3.57632,
+    "windFrom": 180,
+    "terrain": "suburban",
+    "Tout": 295.3722222222222,
+    "TinStart": 300.92777777777775,
+    "ceilingHeight": 2.4384,
+    "target": 296.4833333333333,
+    "goal": "fresh"
+  }
+}

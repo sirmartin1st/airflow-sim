@@ -15,17 +15,19 @@
 //                fan: null | { preset, direction: 'in'|'out', speed } }],   window fan (§5.6)
 //   fans:     [{ id, preset, x, y, angle, speed }],         angle: degrees, 0 = +x, clockwise on screen
 //                                                           speed: 'off'|'low'|'medium'|'high'
-//   conditions?: { orientation, windSpeed, windFrom, terrain, Tout, TinStart, ceilingHeight } }
-//                                                           optional, SI (see physics/coupling.js)
+//   probes:   [{ id, x, y }],                              comfort probes ("person" markers), SCIENCE.md §7.3
+//   conditions?: { orientation, windSpeed, windFrom, terrain, Tout, TinStart, ceilingHeight,
+//                  target?, goal? } }                       optional, SI; target K, goal 'breeze'|'cool'|'fresh'
 
 import { DOOR_DEFAULTS, WINDOW_DEFAULTS, SLIDING_WINDOW_OPEN_FRACTION, FAN_PRESETS, TERRAIN } from '../constants.js';
 
 export const LAYOUT_VERSION = 1;
 export const FAN_SPEEDS = Object.freeze(['off', 'low', 'medium', 'high']);
+export const GOALS = Object.freeze(['breeze', 'cool', 'fresh']);
 const EPS = 1e-6; // m, tolerance for "same line"
 
 export function createLayout(width, height) {
-  return { version: LAYOUT_VERSION, width, height, walls: [], openings: [], fans: [] };
+  return { version: LAYOUT_VERSION, width, height, walls: [], openings: [], fans: [], probes: [] };
 }
 
 // ---------------------------------------------------------------------------
@@ -95,7 +97,7 @@ export function isOnWall(layout, o) {
 }
 
 function nextId(layout, prefix) {
-  const used = new Set([...layout.openings, ...layout.fans].map((it) => it.id));
+  const used = new Set([...layout.openings, ...layout.fans, ...(layout.probes ?? [])].map((it) => it.id));
   let n = 1;
   while (used.has(`${prefix}${n}`)) n++;
   return `${prefix}${n}`;
@@ -154,19 +156,30 @@ export function addFan(layout, preset, x, y, angle = 0, speed = 'high') {
 }
 
 // ---------------------------------------------------------------------------
-// Generic item edits (openings and fans, by id)
+// Comfort probes ("person" markers)
+// ---------------------------------------------------------------------------
+
+export function addProbe(layout, x, y) {
+  const id = nextId(layout, 'person');
+  return { layout: { ...layout, probes: [...(layout.probes ?? []), { id, x, y }] }, id };
+}
+
+// ---------------------------------------------------------------------------
+// Generic item edits (openings, fans and probes, by id)
 // ---------------------------------------------------------------------------
 
 export function findItem(layout, id) {
-  return layout.openings.find((o) => o.id === id) || layout.fans.find((f) => f.id === id) || null;
+  return layout.openings.find((o) => o.id === id) || layout.fans.find((f) => f.id === id)
+    || (layout.probes ?? []).find((p) => p.id === id) || null;
 }
 
-/** Shallow-merges `patch` into the opening or fan with this id. */
+/** Shallow-merges `patch` into the opening, fan or probe with this id. */
 export function updateItem(layout, id, patch) {
   return {
     ...layout,
     openings: layout.openings.map((o) => (o.id === id ? { ...o, ...patch } : o)),
     fans: layout.fans.map((f) => (f.id === id ? { ...f, ...patch } : f)),
+    probes: (layout.probes ?? []).map((p) => (p.id === id ? { ...p, ...patch } : p)),
   };
 }
 
@@ -175,6 +188,7 @@ export function removeItem(layout, id) {
     ...layout,
     openings: layout.openings.filter((o) => o.id !== id),
     fans: layout.fans.filter((f) => f.id !== id),
+    probes: (layout.probes ?? []).filter((p) => p.id !== id),
   };
 }
 
@@ -244,6 +258,12 @@ export function parseLayout(obj) {
       x: num(f.x, `${what} x`), y: num(f.y, `${what} y`), angle: num(f.angle, `${what} angle`), speed: f.speed,
     };
   });
+  if (obj.probes !== undefined) {
+    if (!Array.isArray(obj.probes)) fail('"probes" must be a list.');
+    layout.probes = obj.probes.map((p, k) => ({
+      id: uniqueId(p.id, `person marker ${k + 1}`), x: num(p.x, `person marker ${k + 1} x`), y: num(p.y, `person marker ${k + 1} y`),
+    }));
+  }
   if (obj.conditions !== undefined) {
     const c = obj.conditions;
     if (!c || typeof c !== 'object') fail('"conditions" must be an object.');
@@ -254,6 +274,11 @@ export function parseLayout(obj) {
       terrain: c.terrain, Tout: pos(c.Tout, 'outside temperature'), TinStart: pos(c.TinStart, 'inside temperature'),
       ceilingHeight: pos(c.ceilingHeight, 'ceiling height'),
     };
+    if (c.target !== undefined) layout.conditions.target = pos(c.target, 'target temperature');
+    if (c.goal !== undefined) {
+      if (!GOALS.includes(c.goal)) fail('conditions goal is not recognised.');
+      layout.conditions.goal = c.goal;
+    }
   }
   return layout;
 }

@@ -1,0 +1,22 @@
+[
+  {
+    "file": "bedroom-box-fan.json",
+    "label": "Bedroom with a box fan",
+    "description": "One window, a box fan just inside it blowing into the room, and a person in bed. Try moving the fan or pointing it at the bed."
+  },
+  {
+    "file": "cross-breeze-apartment.json",
+    "label": "Cross-breeze apartment",
+    "description": "Two rooms joined by an open door, windows on the north and south walls, wind from the south. Try closing the door or changing the wind."
+  },
+  {
+    "file": "single-window-room.json",
+    "label": "Single-window room",
+    "description": "An office with one open window. With no second opening, air only trades back and forth through the window (\"two-way\" flow). Try adding a fan or opening a door."
+  },
+  {
+    "file": "small-house-window-fan.json",
+    "label": "Small house with a window fan",
+    "description": "Three rooms and a kitchen. A window fan blows out of the kitchen, pulling cool evening air in through the bedroom and living room windows. Try moving the fan to another window."
+  }
+]

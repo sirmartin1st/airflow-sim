@@ -6,7 +6,8 @@ import { buildGrid, LCELL } from '../layout/grid.js';
 import { FAN_PRESETS, DEFAULT_CELL_SIZE, FAN_ACTUATOR_DEPTH_CELLS } from '../constants.js';
 import { ftToM } from '../units.js';
 
-export const TOOLS = Object.freeze(['select', 'room', 'wall', 'window', 'door', 'fan', 'erase']);
+export const TOOLS = Object.freeze(['select', 'room', 'wall', 'window', 'door', 'fan', 'person', 'erase']);
+const PERSON_RADIUS = 0.25;       // m, drawn and clickable size of a person marker
 
 const SNAP = ftToM(0.5);          // walls, rooms and fans snap to a 6-inch grid
 const HIT_PX = 8;                 // how close (in screen pixels) a click must be to hit something
@@ -29,7 +30,7 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
     layout,
     grid: buildGrid(layout),
     tool: 'room',
-    selection: null,      // { type: 'wall', index } | { type: 'opening'|'fan', id } | null
+    selection: null,      // { type: 'wall', index } | { type: 'opening'|'fan'|'probe', id } | null
     hover: null,
     drag: null,           // { kind: 'wall'|'room'|'move', start, end, id, before, offset }
     pointer: null,        // last pointer position (world, m) for the snap marker
@@ -122,9 +123,12 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
       : [o.x, o.y - o.width / 2, o.x, o.y + o.width / 2];
   }
 
-  /** What's under world point p: fans first, then openings, then walls. */
+  /** What's under world point p: person markers, then fans, openings, walls. */
   function hitTest(p) {
     const tol = HIT_PX / st.view.scale;
+    for (const pr of st.layout.probes ?? []) {
+      if (Math.hypot(p.x - pr.x, p.y - pr.y) <= PERSON_RADIUS + tol) return { type: 'probe', id: pr.id };
+    }
     for (let k = st.layout.fans.length - 1; k >= 0; k--) {
       const f = st.layout.fans[k];
       const a = (f.angle * Math.PI) / 180, dx = p.x - f.x, dy = p.y - f.y;
@@ -168,6 +172,11 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
       const r = L.addFan(st.layout, 'box20', fp.x, fp.y, 0, 'high');
       commit(r.layout);
       select({ type: 'fan', id: r.id });
+    } else if (tool === 'person') {
+      const pp = clampToPlan({ x: snap(p.x, SNAP / 2), y: snap(p.y, SNAP / 2) });
+      const r = L.addProbe(st.layout, pp.x, pp.y);
+      commit(r.layout);
+      select({ type: 'probe', id: r.id });
     } else if (tool === 'erase') {
       const hit = hitTest(p);
       if (!hit) return;
@@ -199,7 +208,7 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
       const item = L.findItem(st.layout, d.id);
       const q = { x: p.x - d.offset.x, y: p.y - d.offset.y };
       let next;
-      if (st.layout.fans.includes(item)) {
+      if (st.layout.fans.includes(item) || (st.layout.probes ?? []).includes(item)) {
         const fp = clampToPlan({ x: snap(q.x, SNAP / 2), y: snap(q.y, SNAP / 2) });
         next = L.updateItem(st.layout, d.id, fp);
       } else {
@@ -230,7 +239,7 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
     if (mod && ev.key.toLowerCase() === 'z') { ev.preventDefault(); if (ev.shiftKey) redo(); else undo(); return; }
     if (mod && ev.key.toLowerCase() === 'y') { ev.preventDefault(); redo(); return; }
     if (mod || ev.altKey) return;
-    const keys = { s: 'select', b: 'room', w: 'wall', n: 'window', d: 'door', f: 'fan', e: 'erase' };
+    const keys = { s: 'select', b: 'room', w: 'wall', n: 'window', d: 'door', f: 'fan', p: 'person', e: 'erase' };
     const k = ev.key.toLowerCase();
     if (keys[k]) { setTool(keys[k]); return; }
     if (k === 'r' && st.selection?.type === 'fan') { rotateSelected(ev.shiftKey ? -15 : 15); return; }
@@ -323,8 +332,9 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
     const opInfo = new Map(g.ok ? g.openings.map((o) => [o.id, o]) : []);
     for (const o of st.layout.openings) drawOpening(o, opInfo.get(o.id), wallPx);
 
-    // Fans
+    // Fans and person markers
     for (const f of st.layout.fans) drawFan(f);
+    for (const pr of st.layout.probes ?? []) drawPerson(pr);
 
     // Simulation (arrows, flows, compass)
     if (st.overlay) st.overlay(ctx, { toScreen, scale }, { ...c, halo: c.panel }, cw, ch);
@@ -430,6 +440,19 @@ export function createEditor(canvas, { layout, onChange, onSelect, onMessage }) 
       const len = { low: 18, medium: 26, high: 34 }[f.speed];
       drawArrow(cx + Math.cos(a) * (dpx / 2 + 2), cy + Math.sin(a) * (dpx / 2 + 2), Math.cos(a), Math.sin(a), len, c.fan);
     }
+  }
+
+  // A simple person symbol (head and shoulders, seen from above) for a comfort probe.
+  function drawPerson(pr) {
+    const c = st.colors, [cx, cy] = toScreen(pr.x, pr.y);
+    const r = Math.max(7, PERSON_RADIUS * st.view.scale);
+    const hl = isSelected({ type: 'probe', id: pr.id }) || isHovered({ type: 'probe', id: pr.id });
+    ctx.save();
+    ctx.fillStyle = c.panel; ctx.strokeStyle = hl ? c.accent : c.text; ctx.lineWidth = hl ? 2.5 : 1.5;
+    ctx.beginPath(); ctx.ellipse(cx, cy, r, r * 0.6, 0, 0, 2 * Math.PI); ctx.fill(); ctx.stroke();   // shoulders
+    ctx.fillStyle = hl ? c.accent : c.text;
+    ctx.beginPath(); ctx.arc(cx, cy, r * 0.38, 0, 2 * Math.PI); ctx.fill();                       // head
+    ctx.restore();
   }
 
   function drawArrow(x, y, dx, dy, len, color) {

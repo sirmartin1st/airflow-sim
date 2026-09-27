@@ -380,6 +380,15 @@ Draw arrow glyphs on a coarse lattice (every ~0.5 m). Direction = local velocity
 - **Comfort probes**: the user drops "person" markers. Each shows local speed and temperature over time. Reference points from ASHRAE Standard 55: air speed below about 0.2 m/s (40 fpm) is "still air"; higher speeds give a cooling effect that grows with speed. v2 can compute the actual cooling effect with the SET method used by ASHRAE 55 / the CBE Thermal Comfort Tool. Don't hard-code a degrees-of-cooling number without that model.
 - **Time to target**: sim time until zone mean temperature is within 1 °F of a user setpoint.
 
+*Implementation details (added 2026-09-28, approved by Marty):*
+- **Probes** show the local air speed |u| (bilinear, at the marker) and the local Layer B temperature. Both are exponential moving averages over 60 s of sim time (the same window as the stagnant average), so readings don't flicker with swirl wander. For the first 60 s the UI says the average is still settling.
+- **Time to target** uses the zone-mean temperature T̄ from Layer A's heat balance (§6.7). Once a zone's T̄ is within 1 °F of the target, the sim time is recorded ("reached at …"). Before that it is **estimated** from the current state, assuming today's flows continue: `t = t_now + τ · ln((T̄ − T_out) / (T_b − T_out))`, with `τ = V / (Q_in + Σ Q_exchange)` and T_b = the edge of the ±1 °F band nearest T̄. If T_b isn't between T̄ and T_out, the target can't be reached with outdoor air and the UI says so. The estimate changes as the stack term changes Q. With several zones, the headline is the slowest zone. Free-standing fans don't change this number in v1: they move air inside a zone but don't exchange it with outside.
+- **Headline number** for comparing layouts, chosen by the user's goal:
+  - "Feel a breeze": mean of the probes' averaged air speeds (ft/min, higher is better). Shown next to the ASHRAE 55 still-air reference of 40 ft/min.
+  - "Cool the room down": time to target (shorter is better).
+  - "Fresh air everywhere": stagnant area % (lower is better), with the room-average age of air alongside.
+- **Compare A vs B**: the user saves the current numbers as A, changes the layout and runs again. The panel shows both values with a better/worse marker (an arrow and a word, never colour alone). Comparisons are only meaningful once both runs have settled, which the UI points out.
+
 ## 8. Validation suite (must pass before each release)
 
 Every test lives in `tests/` and runs in Node with no browser. Record results in `VALIDATION.md` (numbers, pass/fail, date).
