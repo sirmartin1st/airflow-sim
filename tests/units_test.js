@@ -9,6 +9,7 @@ check('1 CFM = 4.71947e-4 m³/s', () => nearRel(U.cfmToM3s(1), 0.3048 ** 3 / 60,
 check('2000 CFM ≈ 0.9439 m³/s', () => near(U.cfmToM3s(2000), 0.9439, 1e-4));
 check('40 fpm ≈ 0.2 m/s (ASHRAE 55 still air)', () => near(U.fpmToMps(40), 0.2032, 1e-9));
 
+check('1 m² ≈ 10.7639 ft²', () => near(U.m2ToFt2(1), 10.7639104, 1e-6));
 check('32 °F = 0 °C', () => near(U.fToC(32), 0, 1e-12));
 check('212 °F = 100 °C', () => near(U.fToC(212), 100, 1e-12));
 check('−40 °F = −40 °C', () => near(U.fToC(-40), -40, 1e-12));

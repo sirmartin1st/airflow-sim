@@ -3,19 +3,61 @@
   --panel: #ffffff;
   --text: #1d2330;
   --muted: #6b7280;
-  --grid: #e3e6eb;
   --border: #d0d5dd;
+  --grid: #eceef2;
+  --grid-major: #d5d9e0;
+  --wall: #2b3240;
+  --window: #2f80d1;
+  --door: #9a6a3a;
+  --closed: #9aa3ad;
+  --fan: #0f9d76;
+  --fan-off: #9aa3ad;
+  --accent: #e0602b;
+  --warn: #d98a00;
+  --error: #d23c3c;
+  --zone-a: #cfe3f7;
+  --zone-b: #d8efd9;
+  --zone-c: #f5e2c8;
+  --zone-d: #e6dcf3;
+  --button: #ffffff;
+  --button-active: #1d2330;
+  --button-active-text: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #14171c;
     --panel: #1c2027;
     --text: #e6e8eb;
     --muted: #9aa3ad;
-    --grid: #2a2f38;
     --border: #353b45;
+    --grid: #232830;
+    --grid-major: #2f3540;
+    --wall: #d9dde3;
+    --window: #5aa6ee;
+    --door: #c89560;
+    --closed: #6b7480;
+    --fan: #3fcf9f;
+    --fan-off: #6b7480;
+    --accent: #ff8a50;
+    --warn: #f0a92e;
+    --error: #ff6b6b;
+    --zone-a: #1f3550;
+    --zone-b: #1f3d2a;
+    --zone-c: #45361f;
+    --zone-d: #33294a;
+    --button: #232830;
+    --button-active: #e6e8eb;
+    --button-active-text: #14171c;
   }
+}
+
+:root[data-theme="dark"] {
+  --bg: #14171c; --panel: #1c2027; --text: #e6e8eb; --muted: #9aa3ad; --border: #353b45;
+  --grid: #232830; --grid-major: #2f3540; --wall: #d9dde3; --window: #5aa6ee; --door: #c89560;
+  --closed: #6b7480; --fan: #3fcf9f; --fan-off: #6b7480; --accent: #ff8a50; --warn: #f0a92e;
+  --error: #ff6b6b; --zone-a: #1f3550; --zone-b: #1f3d2a; --zone-c: #45361f; --zone-d: #33294a;
+  --button: #232830; --button-active: #e6e8eb; --button-active-text: #14171c;
 }
 
 * { box-sizing: border-box; }
@@ -30,25 +72,89 @@ body {
 header {
   display: flex;
   align-items: baseline;
-  gap: 1rem;
+  flex-wrap: wrap;
+  gap: 0.25rem 1rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid var(--border);
 }
 
 h1 { font-size: 1.2rem; margin: 0; }
+h2 { font-size: 1rem; margin: 0 0 0.5rem; }
+h3 { font-size: 0.9rem; margin: 1rem 0 0.4rem; }
 
-.status { margin: 0; color: var(--muted); font-size: 0.9rem; }
+.status { margin: 0; color: var(--muted); font-size: 0.85rem; }
 
-main { padding: 1rem; }
+/* App layout: toolbar on top, plan and properties side by side (stacked on narrow screens). */
+.app {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 18rem;
+  grid-template-areas: "toolbar toolbar" "stage props";
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 1rem;
+}
+.toolbar { grid-area: toolbar; display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.stage { grid-area: stage; min-width: 0; }
+.props { grid-area: props; }
 
-#sim-canvas {
+@media (max-width: 760px) {
+  .app { grid-template-columns: minmax(0, 1fr); grid-template-areas: "toolbar" "stage" "props"; padding: 0.5rem 16px 1rem; }
+}
+
+.group { display: flex; flex-wrap: wrap; gap: 0.25rem; }
+
+button {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.7rem;
+  color: var(--text);
+  background: var(--button);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--muted); }
+button:disabled { opacity: 0.45; cursor: default; }
+button[aria-pressed="true"] { background: var(--button-active); color: var(--button-active-text); border-color: var(--button-active); }
+button.danger { color: var(--error); margin-top: 1rem; }
+
+#plan {
   display: block;
-  max-width: 100%;
-  height: auto;
+  width: 100%;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 4px;
+  touch-action: none;
+  cursor: crosshair;
 }
+#plan[data-tool="select"] { cursor: default; }
+#plan[data-tool="erase"] { cursor: not-allowed; }
+
+.status-bar { margin: 0.5rem 0 0; font-size: 0.9rem; }
+.status-bar.error { color: var(--error); }
+.warnings { margin: 0.25rem 0 0; padding-left: 1.2rem; font-size: 0.85rem; color: var(--warn); }
+
+.props {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0.75rem;
+  align-self: start;
+  font-size: 0.9rem;
+}
+.props label { display: flex; flex-direction: column; gap: 0.2rem; margin: 0.5rem 0; color: var(--muted); font-size: 0.85rem; }
+.props label.check { flex-direction: row; align-items: center; gap: 0.4rem; color: var(--text); }
+.props input[type="number"], .props select {
+  font: inherit; padding: 0.3rem; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: 3px; width: 100%;
+}
+.props .row { display: flex; align-items: center; gap: 0.4rem; }
+.props .row input[type="range"] { flex: 1; }
+.props .row input[type="number"] { width: 5rem; }
+.props .help { padding-left: 1.2rem; margin: 0 0 0.75rem; }
+.props .help li { margin: 0.3rem 0; }
+.muted { color: var(--muted); font-size: 0.85rem; }
+.warn { color: var(--warn); font-size: 0.85rem; }
+.error { color: var(--error); font-size: 0.85rem; }
 
 /* Debug pages */
 .debug .inputs { display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; margin-bottom: 1rem; }

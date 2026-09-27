@@ -13,6 +13,9 @@ const M3S_PER_CFM = 4.71947e-4;   // 0.3048³ / 60 = 4.719474e-4
 export const ftToM = (ft) => ft * M_PER_FT;
 export const mToFt = (m) => m / M_PER_FT;
 
+// Area
+export const m2ToFt2 = (m2) => m2 / (M_PER_FT * M_PER_FT);
+
 // Velocity
 export const mphToMps = (mph) => mph * MPS_PER_MPH;
 export const mpsToMph = (mps) => mps / MPS_PER_MPH;

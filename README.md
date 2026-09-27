@@ -2,9 +2,17 @@
 
 Draw a floor plan (walls, doors, windows, fans), set the outdoor conditions, and watch an animated simulation of how air moves through the space. The goal is to help you work out how to arrange windows, doors and fans to get the airflow you want.
 
-**Status:** Phase 1 (repo skeleton). No simulation yet.
+**Status:** Phase 5 (layout editor). The physics engine is built and tested; it gets connected to the editor in Phase 6.
 
 **Live site:** _coming once GitHub Pages is enabled_ (`https://sirmartin1st.github.io/airflow-sim/`)
+
+## Using the editor
+
+- **Room** (B): drag a rectangle of walls. **Wall** (W): drag a single wall. Walls snap to a 6-inch grid.
+- **Window** (N) / **Door** (D): click on a wall. **Fan** (F): click inside a room.
+- **Select** (S): click anything to edit it in the side panel; drag windows, doors and fans to move them. **R** rotates a selected fan.
+- **Erase** (E): click something to delete it. **Cmd/Ctrl+Z** undoes.
+- Your layout autosaves in the browser. **Save file** / **Open file** keep layouts as `.json` files.
 
 ## How it works
 
